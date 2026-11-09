@@ -1,0 +1,108 @@
+import 'dotenv/config';
+import 'reflect-metadata';
+import { existsSync } from 'fs';
+import * as path from 'path';
+import * as express from 'express';
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+import { LegacyUserService } from './oidc/legacy/legacy-user.service';
+import { createProvider } from './oidc/provider.factory';
+import { interactionRouter } from './oidc/interaction.routes';
+import { loadConfig } from './config/env';
+import { closePool } from './db/pool';
+
+const PROVIDER_PREFIXES = [
+  '/auth',
+  '/token',
+  '/userinfo',
+  '/jwks',
+  '/session',
+  '/.well-known',
+  '/introspect',
+  '/revocation',
+];
+
+const isProviderPath = (path: string): boolean =>
+  PROVIDER_PREFIXES.some((p) => path === p || path.startsWith(p + '/'));
+
+async function bootstrap(): Promise<void> {
+  const config = loadConfig();
+
+  const app = await NestFactory.create(AppModule, {
+    logger: ['error', 'warn', 'log'],
+  });
+  app.setGlobalPrefix('api');
+  app.enableCors({
+    origin: config.corsOrigins.length ? config.corsOrigins : false,
+    credentials: true,
+  });
+
+  const legacyUserService = app.get(LegacyUserService);
+  const provider = createProvider(config, legacyUserService);
+
+  const server = app.getHttpAdapter().getInstance() as express.Express;
+
+  // 前端静态资源（frontend/dist）
+  const distDir = path.resolve(__dirname, '../../frontend/dist');
+  const hasDist = existsSync(path.join(distDir, 'index.html'));
+
+  // 关键：以下中间件必须挂在 Nest 路由注册之前（app.init() 在 listen 时才注册路由）。
+  // Nest 路由会对未匹配请求直接 404 终结，所以 OIDC 中间件要排在前面。
+
+  // 1. body 解析（interaction 路由需要读 JSON body）
+  server.use(express.json({ limit: '1mb' }));
+  server.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+  // 2. OIDC interaction 路由（登录/授权交互）
+  server.use(interactionRouter(provider, legacyUserService, config, distDir));
+
+  // 3. SPA 静态资源与 history 回退
+  if (hasDist) {
+    server.use(express.static(distDir));
+    server.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+      if (req.method !== 'GET') return next();
+      if (isProviderPath(req.path)) return next();
+      if (req.path.startsWith('/api') || req.path.startsWith('/interaction')) return next();
+      res.sendFile(path.join(distDir, 'index.html'));
+    });
+  } else {
+    // eslint-disable-next-line no-console
+    console.warn('[boot] 未找到 frontend/dist，请先执行 cd frontend && npm run build');
+  }
+
+  // 4. OIDC 协议端点闸门：只有协议路径交给 provider，其余放行给 Nest（/api/*）
+  //    注意 provider.callback() 返回 koa handler，必须以 this=provider 调用后再执行
+  const oidcHandler = provider.callback();
+  server.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (isProviderPath(req.path)) {
+      oidcHandler(req, res, next);
+    } else {
+      next();
+    }
+  });
+
+  await app.listen(config.port);
+  // eslint-disable-next-line no-console
+  console.log(`[boot] OIDC Provider ready: ${config.issuer}`);
+  // eslint-disable-next-line no-console
+  console.log(`[boot] discovery: ${config.issuer}/.well-known/openid-configuration`);
+  // eslint-disable-next-line no-console
+  console.log(`[boot] admin api: ${config.issuer}/api/admin/clients（Bearer token 鉴权）`);
+
+  // 优雅停机
+  const shutdown = async (signal: string) => {
+    // eslint-disable-next-line no-console
+    console.log(`[shutdown] 收到 ${signal}，正在关闭...`);
+    await app.close();
+    await closePool();
+    process.exit(0);
+  };
+  process.on('SIGINT', () => void shutdown('SIGINT'));
+  process.on('SIGTERM', () => void shutdown('SIGTERM'));
+}
+
+bootstrap().catch((err) => {
+  // eslint-disable-next-line no-console
+  console.error('[boot] 启动失败:', err);
+  process.exit(1);
+});

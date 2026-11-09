@@ -1,0 +1,25 @@
+version: "3.8"
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: wb-oidc-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: wb_oidc
+    ports:
+      - "5432:5432"
+    volumes:
+      - wb_oidc_pgdata:/var/lib/postgresql/data
+  # 老系统 PostgreSQL 模拟实例（联调用）；生产直接连老库，不启用这个
+  legacy-postgres:
+    image: postgres:16-alpine
+    container_name: wb-oidc-legacy-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: legacy_db
+    ports:
+      - "5433:5432"
+volumes:
+  wb_oidc_pgdata:
