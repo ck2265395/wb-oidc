@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -71,6 +72,25 @@ export class ClientsController {
     return { data: row };
   }
 
+  /** 通用编辑：应用名称 / 回调地址 / scope */
+  @Patch(':clientId')
+  async update(
+    @CurrentAdmin() admin: AdminPrincipal,
+    @Param('clientId') clientId: string,
+    @Body() dto: { client_name?: string; redirect_uris?: string[]; scope?: string },
+    @Req() req: Request,
+  ): Promise<{ data: ClientRow }> {
+    const row = await this.clientsService.update(clientId, dto);
+    await this.audit.log(
+      admin,
+      'client.update',
+      clientId,
+      { fields: Object.keys(dto) },
+      req.ip,
+    );
+    return { data: row };
+  }
+
   @Post(':clientId/rotate-secret')
   async rotateSecret(
     @CurrentAdmin() admin: AdminPrincipal,
@@ -80,6 +100,29 @@ export class ClientsController {
     const { client, secret } = await this.clientsService.rotateSecret(clientId);
     await this.audit.log(admin, 'client.rotate_secret', clientId, undefined, req.ip);
     return { data: client, client_secret: secret };
+  }
+
+  /** 应用审核：approve / reject / suspend（reject、suspend 必须带理由） */
+  @Post(':clientId/review')
+  async review(
+    @CurrentAdmin() admin: AdminPrincipal,
+    @Param('clientId') clientId: string,
+    @Body() body: { action?: 'approve' | 'reject' | 'suspend'; reason?: string },
+    @Req() req: Request,
+  ): Promise<{ data: ClientRow }> {
+    const action = body?.action;
+    const reason = String(body?.reason || '');
+    if (!action || !['approve', 'reject', 'suspend'].includes(action)) {
+      throw new BadRequestException('action 必须是 approve / reject / suspend');
+    }
+    if (action !== 'approve' && !reason) {
+      throw new BadRequestException('拒绝或停用必须填写理由');
+    }
+    const status =
+      action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : 'suspended';
+    const row = await this.clientsService.setStatus(clientId, status, reason);
+    await this.audit.log(admin, 'client.review', clientId, { action, reason }, req.ip);
+    return { data: row };
   }
 
   @Delete(':clientId')

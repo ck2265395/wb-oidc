@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import 'reflect-metadata';
-import { existsSync } from 'fs';
+import { existsSync, mkdirSync, appendFileSync } from 'fs';
 import * as path from 'path';
 import * as express from 'express';
 import { NestFactory } from '@nestjs/core';
@@ -9,7 +9,7 @@ import { LegacyUserService } from './oidc/legacy/legacy-user.service';
 import { createProvider } from './oidc/provider.factory';
 import { interactionRouter } from './oidc/interaction.routes';
 import { loadConfig } from './config/env';
-import { closePool } from './db/pool';
+import { closePool, waitReady } from './db/pool';
 
 const PROVIDER_PREFIXES = [
   '/auth',
@@ -27,6 +27,9 @@ const isProviderPath = (path: string): boolean =>
 
 async function bootstrap(): Promise<void> {
   const config = loadConfig();
+
+  // 先建表再接请求，避免首个请求与 ensureSchema 竞态
+  await waitReady();
 
   const app = await NestFactory.create(AppModule, {
     logger: ['error', 'warn', 'log'],
@@ -48,6 +51,33 @@ async function bootstrap(): Promise<void> {
 
   // 关键：以下中间件必须挂在 Nest 路由注册之前（app.init() 在 listen 时才注册路由）。
   // Nest 路由会对未匹配请求直接 404 终结，所以 OIDC 中间件要排在前面。
+
+  // 0. 请求日志：方法 路径 状态码 耗时（控制台 + backend/logs/access.log 双写）
+  const logDir = path.resolve(__dirname, '../logs');
+  try {
+    mkdirSync(logDir, { recursive: true });
+  } catch {
+    /* 已存在或无权限时跳过文件日志 */
+  }
+  const logFile = path.join(logDir, 'access.log');
+  const appendLog = (line: string) => {
+    // eslint-disable-next-line no-console
+    console.log(line);
+    try {
+      appendFileSync(logFile, line + '\n');
+    } catch {
+      /* 文件日志失败不影响请求 */
+    }
+  };
+  server.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const start = Date.now();
+    res.on('finish', () => {
+      appendLog(
+        `[${new Date().toISOString()}] ${req.method} ${req.originalUrl} -> ${res.statusCode} ${Date.now() - start}ms`,
+      );
+    });
+    next();
+  });
 
   // 1. body 解析（interaction 路由需要读 JSON body）
   server.use(express.json({ limit: '1mb' }));

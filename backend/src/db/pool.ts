@@ -116,6 +116,42 @@ CREATE TABLE IF NOT EXISTS oidc_admin_log (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_admin_log_created ON oidc_admin_log (created_at DESC);
+
+-- 开发者账号（门户自助注册，注册后 pending，管理员审核通过才可提交应用）
+CREATE TABLE IF NOT EXISTS oidc_developer (
+  id BIGSERIAL PRIMARY KEY,
+  email VARCHAR(128) UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  company VARCHAR(128) NOT NULL DEFAULT '',
+  contact VARCHAR(64) NOT NULL DEFAULT '',
+  status VARCHAR(16) NOT NULL DEFAULT 'pending',  -- pending | active | suspended
+  reject_reason TEXT NOT NULL DEFAULT '',
+  last_login_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_developer_status ON oidc_developer (status);
+
+-- 开发者刷新令牌（与管理员会话同构）
+CREATE TABLE IF NOT EXISTS oidc_developer_session (
+  id BIGSERIAL PRIMARY KEY,
+  developer_id BIGINT NOT NULL REFERENCES oidc_developer(id) ON DELETE CASCADE,
+  token_hash CHAR(64) UNIQUE NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  revoked_at TIMESTAMPTZ,
+  ip VARCHAR(64),
+  user_agent TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_dev_session_developer ON oidc_developer_session (developer_id);
+CREATE INDEX IF NOT EXISTS idx_dev_session_expires ON oidc_developer_session (expires_at);
+
+-- 应用审核流：developer_id 归属 + status 审核状态（存量应用默认 approved 不受影响）
+ALTER TABLE oidc_clients ADD COLUMN IF NOT EXISTS developer_id BIGINT REFERENCES oidc_developer(id) ON DELETE SET NULL;
+ALTER TABLE oidc_clients ADD COLUMN IF NOT EXISTS status VARCHAR(16) NOT NULL DEFAULT 'approved'; -- pending | approved | rejected | suspended
+ALTER TABLE oidc_clients ADD COLUMN IF NOT EXISTS reject_reason TEXT NOT NULL DEFAULT '';
+CREATE INDEX IF NOT EXISTS idx_clients_developer ON oidc_clients (developer_id);
+CREATE INDEX IF NOT EXISTS idx_clients_status ON oidc_clients (status);
 `;
 
 async function ensureSchema(pool: Pool): Promise<void> {

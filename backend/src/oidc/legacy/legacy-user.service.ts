@@ -80,8 +80,7 @@ export class LegacyUserService implements OnModuleDestroy {
   }
 
   /** 按 accountId 取 OIDC claims */
-  async getClaims(accountId: string): Promise<AccountClaims | null> {
-    const c = this.config;
+  async getClaims(accountId: string): Promise<AccountClaims | null> {    const c = this.config;
     const sql = `SELECT * FROM "${c.userTable}" WHERE "${c.idField}"::text = $1 LIMIT 1`;
     const { rows } = await this.db.query(sql, [accountId]);
     if (!rows || rows.length === 0) return null;
@@ -95,6 +94,60 @@ export class LegacyUserService implements OnModuleDestroy {
       email_verified: false,
       phone_number: row[c.phoneField] ?? null,
     };
+  }
+
+  /** 老库用户总数（概览统计用，失败由调用方兜底） */
+  async countUsers(): Promise<string> {
+    const c = this.config;
+    const { rows } = await this.db.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM "${c.userTable}"`,
+    );
+    return rows[0]?.count || '0';
+  }
+
+  /**
+   * 老库用户搜索（管理端只读查询）：
+   * 按 用户名/邮箱/手机号 模糊匹配，密码字段一律脱敏，不返回原始哈希。
+   */
+  async search(
+    keyword: string,
+    page: number,
+    size: number,
+  ): Promise<{ data: Array<Record<string, any>>; total: number }> {
+    const c = this.config;
+    const where: string[] = [];
+    const params: string[] = [];
+    if (keyword) {
+      const fields = [c.usernameField, c.emailField, c.phoneField].filter(
+        (f): f is string => !!f,
+      );
+      for (const f of fields) {
+        params.push(`%${keyword}%`);
+        where.push(`"${f}"::text ILIKE $${params.length}`);
+      }
+    }
+    const whereSql = where.length ? `WHERE (${where.join(' OR ')})` : '';
+
+    const { rows: countRows } = await this.db.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM "${c.userTable}" ${whereSql}`,
+      params,
+    );
+    const total = parseInt(countRows[0]?.count || '0', 10);
+
+    const queryParams = [...params, size, (page - 1) * size];
+    const { rows } = await this.db.query(
+      `SELECT * FROM "${c.userTable}" ${whereSql} LIMIT $${queryParams.length - 1} OFFSET $${queryParams.length}`,
+      queryParams,
+    );
+    const data = (rows as Record<string, any>[]).map((row) => {
+      const safe: Record<string, any> = { ...row };
+      // 密码哈希、盐字段一律脱敏
+      for (const f of [c.passwordField, c.saltField]) {
+        if (f && f in safe) safe[f] = '******';
+      }
+      return safe;
+    });
+    return { data, total };
   }
 
   private verifyPassword(password: string, stored: string, row: Record<string, any>): boolean {

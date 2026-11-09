@@ -19,16 +19,26 @@ wb-oidc/
 │   │   │   ├── pg.adapter.ts         # 会话/code/token/grant 持久化到 PG
 │   │   │   ├── interaction.routes.ts # 登录/授权页数据与提交端点
 │   │   │   └── legacy/legacy-user.service.ts  # 老库用户校验（bcrypt/md5/sha1/...，只读连老系统 PG）
-│   │   ├── clients/             # 第三方应用管理（注册/密钥/回调白名单/启停）
+│   │   ├── clients/             # 第三方应用管理（注册/密钥/回调白名单/启停/审核）
+│   │   ├── admin/               # 管理员鉴权、账号管理、审计、概览/会话/老库查询
+│   │   ├── developer/           # 开发者门户后端（注册/登录/应用申请/审核）
 │   │   └── health/health.controller.ts
-│   └── scripts/seed.mjs     # 建表 + 注册示例应用 wb-demo-spa
+│   └── scripts/
+│       ├── seed.mjs             # 建表 + 注册示例应用 + 首个超管
+│       ├── verify-legacy.mjs    # 探测老库密码算法
+│       └── smoke-all.mjs        # 全链路冒烟（37 项断言）
 ├── frontend/
 │   └── src/
 │       ├── views/
-│       │   ├── InteractionView.vue  # 统一登录页 / consent 授权页
-│       │   ├── ConsoleView.vue      # 开发者控制台（管理自己的应用）
-│       │   └── CallbackView.vue     # PKCE 回调演示（code → token → userinfo）
-│       └── api/index.ts
+│       │   ├── InteractionView.vue      # 统一登录页 / consent 授权页
+│       │   ├── ConsoleView.vue          # 管理控制台布局
+│       │   ├── console/                 # 概览/应用/开发者审核/管理员/审计/会话/老库用户
+│       │   ├── developer/               # 开发者门户（登录注册/我的应用/接入文档）
+│       │   ├── LoginView.vue            # 管理员登录
+│       │   └── CallbackView.vue         # PKCE 回调演示（code → token → userinfo）
+│       └── api/
+│           ├── index.ts                 # 管理端 API（内存 token + 静默续期）
+│           └── dev.ts                   # 开发者门户 API（独立 token，互不串）
 └── docker-compose.yml       # PostgreSQL 5432 + 老库模拟 PG 5433
 ```
 
@@ -98,8 +108,23 @@ cd frontend && npm install && npm run build
 
 ## 接入流程（第三方应用视角）
 
-1. **注册应用**：登录开发者控制台（`/console`，账号在 `oidc_admin` 表），或调用管理 API `POST /api/admin/clients`（Bearer token），拿到 `client_id`（SPA/PKCE 客户端可不发 secret）。
-2. **发起授权**：302 跳转
+两条路：**自助门户**（推荐给第三方）或**管理端直接建**（平台内部/联调）。
+
+### A. 开发者门户自助接入
+
+1. 打开 `/developer/login` → 注册（邮箱 + 密码 + 公司/联系方式）→ 状态 `pending`
+2. 管理员在控制台「开发者审核」通过 → 开发者可登录
+3. 开发者「我的应用」提交申请（名称/回调/scopes）→ 应用 `pending`，此时无法发起授权
+4. 管理员在「应用管理」审核通过 → 应用 `approved`，可正常走 OIDC
+5. 开发者修改**回调地址或 scope** → 自动回到 `pending` 重新审核（名称改动不触发）
+
+### B. 管理端直接注册
+
+登录控制台（`/console`）或调用 `POST /api/admin/clients`（Bearer token），拿到 `client_id`（SPA/PKCE 客户端可不发 secret），应用直接 `approved`。
+
+### C. 发起授权
+
+1. 302 跳转
 
    ```
    GET /auth?client_id=xxx&response_type=code
@@ -107,15 +132,15 @@ cd frontend && npm install && npm run build
       &code_challenge=<S256>&code_challenge_method=S256&state=随机串
    ```
 
-3. **用户登录 + 授权**：跳到你域名下的统一登录页（`/interaction/:uid`，Vue 页面），用**老系统的账号密码**登录 → consent 页确认 → 发 code。
-4. **换 token**：后端用 code 换 `id_token + access_token + refresh_token`。
+2. **用户登录 + 授权**：跳到你域名下的统一登录页（`/interaction/:uid`，Vue 页面），用**老系统的账号密码**登录 → consent 页确认 → 发 code。
+3. **换 token**：后端用 code 换 `id_token + access_token + refresh_token`。
 
    ```
    POST /token  grant_type=authorization_code&code=...&client_id=...&code_verifier=...
    ```
 
-5. **拿用户信息**：`GET /userinfo`（Bearer access_token）→ sub / nickname / email / phone / avatar。
-6. **演示**：本仓库前端自带完整演示，访问 `http://localhost:3000/callback?start=1` 一键走完 PKCE 流程。
+4. **拿用户信息**：`GET /userinfo`（Bearer access_token）→ sub / nickname / email / phone / avatar。
+5. **演示**：本仓库前端自带完整演示，访问 `http://localhost:3000/callback?start=1` 一键走完 PKCE 流程。
 
 ## 管理端登录与 API
 
@@ -145,6 +170,7 @@ npm run seed                      # 建表 + 示例客户端 + 首个超级管�
 npm run reset-admin -- admin      # 忘记密码时重置，凭据写入 backend/.admin-credentials.txt
 npm run smoke:admin -- http://127.0.0.1:3000    # 鉴权链路冒烟（9 项断言）
 npm run smoke:password -- http://127.0.0.1:3000 # 改密码链路冒烟（9 项断言，测完自动恢复原密码）
+npm run smoke:all -- http://127.0.0.1:3200      # 全链路冒烟：开发者门户 + 审核 + OIDC + 审计/会话/老库（37 项）
 ```
 
 管理员接口（需 `super_admin`）：
@@ -162,12 +188,40 @@ npm run smoke:password -- http://127.0.0.1:3000 # 改密码链路冒烟（9 项�
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/admin/clients` | 列表（不返回 secret） |
+| GET | `/api/admin/clients` | 列表（含申请人邮箱与审核状态） |
 | POST | `/api/admin/clients` | 注册应用 `{ client_name, redirect_uris, application_type, scope }` |
 | GET | `/api/admin/clients/:clientId` | 详情 |
 | PATCH | `/api/admin/clients/:clientId/enabled/:enabled` | 启停 |
+| PATCH | `/api/admin/clients/:clientId` | 编辑名称/回调/scope |
+| POST | `/api/admin/clients/:clientId/review` | 审核 `{ action: approve\|reject\|suspend, reason }` |
 | POST | `/api/admin/clients/:clientId/rotate-secret` | 轮换 secret |
 | DELETE | `/api/admin/clients/:clientId` | 删除 |
+| GET | `/api/admin/developers` | 开发者列表（可按 status 过滤，仅超管） |
+| PATCH | `/api/admin/developers/:id/status` | 审核/启停开发者 `{ status, reason }` |
+| GET | `/api/admin/logs` | 审计日志（page/size/action/username） |
+| GET | `/api/admin/overview` | 概览统计（应用/开发者/会话/老库用户数 + 最近操作） |
+| GET | `/api/admin/sessions` | OIDC 终端用户会话列表 |
+| DELETE | `/api/admin/sessions/:id` | 吊销会话 |
+| GET | `/api/admin/legacy-users` | 老库用户只读查询（keyword/page/size，密码脱敏） |
+
+开发者门户接口：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/developer/auth/register` | 注册 `{ email, password, company, contact }` → pending |
+| POST | `/api/developer/auth/login` | 登录（仅 active 可登录，独立 cookie） |
+| GET | `/api/developer/auth/me` | 当前开发者 |
+| GET | `/api/developer/apps` | 我的应用列表 |
+| POST | `/api/developer/apps` | 提交应用申请 → pending |
+| PATCH | `/api/developer/apps/:clientId` | 编辑（改回调/scope 自动回 pending） |
+
+全链路冒烟（37 项断言，自带临时超管并在结束后清理数据）：
+
+```bash
+cd backend && npm run build
+PORT=3200 node dist/main.js &
+node scripts/smoke-all.mjs http://localhost:3200
+```
 
 ## 安全要点（已实现 / 待上线加固）
 

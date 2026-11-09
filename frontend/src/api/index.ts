@@ -153,7 +153,58 @@ export interface ClientRow {
   response_types: string[];
   scope: string;
   enabled: boolean;
+  developer_id: number | null;
+  developer_email?: string | null;
+  status: 'pending' | 'approved' | 'rejected' | 'suspended';
+  reject_reason: string;
   created_at: string;
+  updated_at?: string;
+}
+
+// ===== 应用管理扩展 =====
+
+export async function updateClient(
+  clientId: string,
+  dto: { client_name?: string; redirect_uris?: string[]; scope?: string },
+): Promise<ClientRow> {
+  const { data } = await api.patch<{ data: ClientRow }>(`/api/admin/clients/${clientId}`, dto);
+  return data.data;
+}
+
+export async function rotateClientSecret(clientId: string): Promise<string> {
+  const { data } = await api.post<{ client_secret: string }>(
+    `/api/admin/clients/${clientId}/rotate-secret`,
+  );
+  return data.client_secret;
+}
+
+// ===== 管理员账号管理（仅超管） =====
+
+export async function listAdmins(): Promise<AdminInfo[]> {
+  const { data } = await api.get<{ data: AdminInfo[] }>('/api/admin/users');
+  return data.data;
+}
+
+export async function createAdmin(dto: {
+  username: string;
+  password: string;
+  display_name?: string;
+  role?: 'super_admin' | 'operator';
+}): Promise<AdminInfo> {
+  const { data } = await api.post<{ data: AdminInfo }>('/api/admin/users', dto);
+  return data.data;
+}
+
+export async function updateAdmin(
+  id: number,
+  dto: { display_name?: string; role?: 'super_admin' | 'operator'; enabled?: boolean },
+): Promise<AdminInfo> {
+  const { data } = await api.patch<{ data: AdminInfo }>(`/api/admin/users/${id}`, dto);
+  return data.data;
+}
+
+export async function resetAdminPassword(id: number, password: string): Promise<void> {
+  await api.post(`/api/admin/users/${id}/reset-password`, { password });
 }
 
 export interface InteractionDetails {

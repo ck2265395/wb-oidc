@@ -11,6 +11,7 @@
     "reset-admin": "node scripts/reset-admin.mjs",
     "smoke:admin": "node scripts/smoke-admin.mjs",
     "smoke:password": "node scripts/smoke-change-password.mjs",
+    "smoke:all": "node scripts/smoke-all.mjs",
     "verify-legacy": "node scripts/verify-legacy.mjs"
   },
   "dependencies": {

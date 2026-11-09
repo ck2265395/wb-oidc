@@ -33,6 +33,8 @@ export class PgAdapter {
   }
 
   async find(id: string): Promise<Record<string, any> | undefined> {
+    // Client 模型不在 state 表，从业务表 oidc_clients 加载
+    if (this.model === 'Client') return this.findClient(id);
     const pool = getPool();
     const { rows } = await pool.query(
       'SELECT data, expires_at FROM oidc_provider_state WHERE model = $1 AND id = $2',
@@ -43,6 +45,35 @@ export class PgAdapter {
       return undefined;
     }
     return rows[0].data;
+  }
+
+  /**
+   * 从 oidc_clients 加载 OIDC Client。
+   * 只有 status='approved' 且 enabled 的应用可参与协议流程；
+   * pending / rejected / suspended 一律按不存在处理（invalid_client）。
+   */
+  private async findClient(clientId: string): Promise<Record<string, any> | undefined> {
+    const pool = getPool();
+    const { rows } = await pool.query(
+      'SELECT * FROM oidc_clients WHERE client_id = $1 LIMIT 1',
+      [clientId],
+    );
+    if (!rows.length) return undefined;
+    const row = rows[0];
+    if (row.status && row.status !== 'approved') return undefined;
+    if (row.enabled === false) return undefined;
+    return {
+      client_id: row.client_id,
+      client_secret: row.client_secret,
+      client_name: row.client_name,
+      application_type: row.application_type,
+      token_endpoint_auth_method: row.token_endpoint_auth_method,
+      redirect_uris: row.redirect_uris,
+      post_logout_redirect_uris: row.post_logout_redirect_uris,
+      grant_types: row.grant_types,
+      response_types: row.response_types,
+      scope: row.scope,
+    };
   }
 
   async findByUid(uid: string): Promise<Record<string, any> | undefined> {
