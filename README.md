@@ -133,6 +133,9 @@ cd frontend && npm install && npm run build
 2. 之后所有管理请求带 `Authorization: Bearer <access_token>`
 3. access token 过期 → 前端自动调 `POST /api/admin/auth/refresh` 续期并重放原请求
 4. `POST /api/admin/auth/logout` 吊销刷新令牌
+5. `POST /api/admin/auth/change-password` 自助改密码（校验原密码，成功后吊销全部会话）
+
+**改自己的密码**：登录控制台 → 右上角「修改密码」→ 填原密码 + 新密码（至少 10 位、含字母和数字）。改完所有设备都会退出，用新密码重新登录即可。忘记密码则用 `npm run reset-admin -- <用户名>` 重置。
 
 首次使用：
 
@@ -140,7 +143,8 @@ cd frontend && npm install && npm run build
 cd backend
 npm run seed                      # 建表 + 示例客户端 + 首个超级管理员
 npm run reset-admin -- admin      # 忘记密码时重置，凭据写入 backend/.admin-credentials.txt
-npm run smoke:admin -- http://127.0.0.1:3000   # 鉴权链路冒烟（9 项断言）
+npm run smoke:admin -- http://127.0.0.1:3000    # 鉴权链路冒烟（9 项断言）
+npm run smoke:password -- http://127.0.0.1:3000 # 改密码链路冒烟（9 项断言，测完自动恢复原密码）
 ```
 
 管理员接口（需 `super_admin`）：
@@ -148,10 +152,11 @@ npm run smoke:admin -- http://127.0.0.1:3000   # 鉴权链路冒烟（9 项断�
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/api/admin/auth/me` | 当前登录管理员 |
+| POST | `/api/admin/auth/change-password` | 修改**自己**的密码 `{old_password,new_password}` |
 | GET | `/api/admin/users` | 管理员列表 |
 | POST | `/api/admin/users` | 新建管理员 `{username,password,display_name,role}` |
 | PATCH | `/api/admin/users/:id` | 改显示名/角色/启停 |
-| POST | `/api/admin/users/:id/reset-password` | 重置密码（并吊销该账号所有会话） |
+| POST | `/api/admin/users/:id/reset-password` | 重置**他人**密码（并吊销该账号所有会话） |
 
 应用管理接口（任何已登录管理员）：
 

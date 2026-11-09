@@ -1,10 +1,11 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import * as jwt from 'jsonwebtoken';
 import { getPool } from '../db/pool';
 import { loadConfig } from '../config/env';
 import { AdminAuditService } from './admin-audit.service';
+import { assertPasswordStrength } from './admin-password.util';
 import { AdminPrincipal, AdminRow, AdminRole, toAdminView, AdminView } from './admin.types';
 
 export interface LoginResult {
@@ -148,6 +149,56 @@ export class AdminAuthService {
       );
     }
     await this.audit.log(admin ?? null, 'admin.logout', admin?.username, undefined, ip);
+  }
+
+  /**
+   * 自助修改密码：必须提供原密码。
+   * 成功后吊销该账号全部刷新令牌（含当前设备的），强制重新登录。
+   */
+  async changePassword(
+    admin: AdminPrincipal,
+    oldPassword: string,
+    newPassword: string,
+    ip?: string,
+  ): Promise<void> {
+    const { rows } = await this.pool.query<AdminRow>(
+      'SELECT * FROM oidc_admin WHERE id = $1 LIMIT 1',
+      [admin.id],
+    );
+    const row = rows[0];
+    if (!row) throw new UnauthorizedException('管理员不存在');
+
+    if (!bcrypt.compareSync(oldPassword || '', row.password_hash)) {
+      await this.audit.log(
+        admin,
+        'admin.password.change_failed',
+        admin.username,
+        { reason: 'bad_old_password' },
+        ip,
+      );
+      throw new BadRequestException('原密码不正确');
+    }
+
+    assertPasswordStrength(newPassword, row.username);
+    if (bcrypt.compareSync(newPassword, row.password_hash)) {
+      throw new BadRequestException('新密码不能与原密码相同');
+    }
+
+    const hash = await bcrypt.hash(newPassword, 10);
+    await this.pool.query(
+      'UPDATE oidc_admin SET password_hash = $2, updated_at = NOW() WHERE id = $1',
+      [admin.id, hash],
+    );
+    await this.revokeAllSessions(admin.id);
+    await this.audit.log(admin, 'admin.password.change', admin.username, undefined, ip);
+  }
+
+  /** 吊销某管理员的全部刷新令牌（改密码、重置密码后调用） */
+  private async revokeAllSessions(adminId: number): Promise<void> {
+    await this.pool.query(
+      'UPDATE oidc_admin_session SET revoked_at = NOW() WHERE admin_id = $1 AND revoked_at IS NULL',
+      [adminId],
+    );
   }
 
   verifyAccess(token: string): AdminPrincipal {

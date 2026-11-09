@@ -21,6 +21,11 @@ interface LoginDto {
   password?: string;
 }
 
+interface ChangePasswordDto {
+  old_password?: string;
+  new_password?: string;
+}
+
 /**
  * 管理端登录：账号密码 → 短时效 access token（body 返回，前端内存持有）
  * + refresh token（httpOnly cookie，路径限定在 /api/admin/auth，服务端可吊销）。
@@ -89,6 +94,26 @@ export class AdminAuthController {
   @UseGuards(AdminAuthGuard)
   async me(@CurrentAdmin() admin: AdminPrincipal) {
     return { data: await this.auth.me(admin.id) };
+  }
+
+  /** 自助修改密码：校验原密码 → 更新 → 吊销全部会话 → 清 cookie */
+  @Post('change-password')
+  @HttpCode(200)
+  @UseGuards(AdminAuthGuard)
+  async changePassword(
+    @CurrentAdmin() admin: AdminPrincipal,
+    @Body() body: ChangePasswordDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    await this.auth.changePassword(
+      admin,
+      String(body?.old_password || ''),
+      String(body?.new_password || ''),
+      req.ip,
+    );
+    this.clearRefreshCookie(res);
+    return { ok: true, message: '密码已修改，请使用新密码重新登录' };
   }
 
   private cookieOptions() {

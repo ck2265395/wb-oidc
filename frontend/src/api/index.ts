@@ -45,8 +45,15 @@ interface RetriableConfig extends InternalAxiosRequestConfig {
   _retried?: boolean;
 }
 
+/** 这些接口自身就是认证入口，401 时不能再触发刷新（否则会递归） */
+const NO_REFRESH_URLS = [
+  '/api/admin/auth/login',
+  '/api/admin/auth/refresh',
+  '/api/admin/auth/logout',
+];
+
 function isAuthUrl(url?: string): boolean {
-  return !!url && url.startsWith('/api/admin/auth/');
+  return !!url && NO_REFRESH_URLS.some((p) => url.startsWith(p));
 }
 
 /** 单飞刷新：并发 401 只触发一次 refresh */
@@ -119,6 +126,19 @@ export async function fetchMe(): Promise<AdminInfo | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * 自助修改密码。成功后服务端会吊销全部会话，
+ * 这里同步清掉内存里的 access token，强制回登录页。
+ */
+export async function changePassword(oldPassword: string, newPassword: string): Promise<void> {
+  await api.post('/api/admin/auth/change-password', {
+    old_password: oldPassword,
+    new_password: newPassword,
+  });
+  accessToken = '';
+  currentAdmin = null;
 }
 
 export interface ClientRow {

@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { getPool } from '../db/pool';
+import { assertPasswordStrength } from './admin-password.util';
 import { AdminRow, AdminView, toAdminView } from './admin.types';
 
 export interface CreateAdminDto {
@@ -27,15 +28,6 @@ export interface UpdateAdminDto {
  */
 @Injectable()
 export class AdminUsersService {
-  private assertPassword(password: string): void {
-    if (!password || password.length < 10) {
-      throw new BadRequestException('密码至少 10 位');
-    }
-    if (!/[a-zA-Z]/.test(password) || !/\d/.test(password)) {
-      throw new BadRequestException('密码需同时包含字母和数字');
-    }
-  }
-
   async list(): Promise<AdminView[]> {
     const { rows } = await getPool().query<AdminRow>(
       'SELECT * FROM oidc_admin ORDER BY created_at ASC',
@@ -49,7 +41,7 @@ export class AdminUsersService {
       throw new BadRequestException('用户名需 3-32 位字母/数字/_.-');
     }
     const password = dto.password || '';
-    this.assertPassword(password);
+    assertPasswordStrength(password, username);
     const role = dto.role === 'super_admin' ? 'super_admin' : 'operator';
     const hash = await bcrypt.hash(password, 10);
     try {
@@ -91,7 +83,8 @@ export class AdminUsersService {
   }
 
   async resetPassword(id: number, password: string): Promise<void> {
-    this.assertPassword(password);
+    const current = await this.getRow(id);
+    assertPasswordStrength(password, current.username);
     const hash = await bcrypt.hash(password, 10);
     const result = await getPool().query(
       'UPDATE oidc_admin SET password_hash = $2, updated_at = NOW() WHERE id = $1',
