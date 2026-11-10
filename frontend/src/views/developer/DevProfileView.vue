@@ -106,7 +106,7 @@ function fmtTime(s?: string | null): string {
   margin-bottom: 8px;
 }
 .profile-avatar {
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  background: linear-gradient(135deg, #0b57d0, #0a3d91);
   color: #fff;
   font-weight: 700;
   font-size: 22px;

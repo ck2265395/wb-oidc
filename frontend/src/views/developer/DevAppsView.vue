@@ -360,7 +360,7 @@ async function submitEdit() {
   width: 36px;
   height: 36px;
   border-radius: 9px;
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  background: linear-gradient(135deg, #0b57d0, #0a3d91);
   color: #fff;
   font-weight: 700;
   display: flex;

@@ -4,9 +4,9 @@
     <header class="nav">
       <div class="nav-inner">
         <div class="brand" @click="$router.push('/')">
-          <div class="brand-logo">WB</div>
+          <img class="brand-logo" src="/moondrop.ico" alt="Moondrop" />
           <div class="brand-text">
-            <span class="brand-name">WB 开放平台</span>
+            <span class="brand-name">Moondrop 开放平台</span>
             <span class="brand-sub">统一身份认证 · OIDC</span>
           </div>
         </div>
@@ -58,7 +58,10 @@
     <!-- 页脚 -->
     <footer class="footer">
       <div class="footer-inner">
-        <span>© 2026 WB 开放平台 · 基于 OIDC 标准协议</span>
+        <div class="footer-brand">
+          <img class="footer-logo" src="/moondrop.ico" alt="Moondrop" />
+          <span>© 2026 Moondrop 开放平台 · 基于 OIDC 标准协议</span>
+        </div>
         <el-space :size="16">
           <RouterLink to="/docs" class="footer-link">接入文档</RouterLink>
           <RouterLink to="/" class="footer-link">开发者首页</RouterLink>
@@ -73,7 +76,13 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { ArrowDown } from '@element-plus/icons-vue';
-import { devLogout, getCurrentDeveloper, refreshDevSession, DeveloperInfo } from '../../api/dev';
+import {
+  devLogout,
+  getDevAccessToken,
+  getCurrentDeveloper,
+  refreshDevSession,
+  DeveloperInfo,
+} from '../../api/dev';
 
 const route = useRoute();
 const router = useRouter();
@@ -111,20 +120,20 @@ async function onCommand(cmd: string) {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #f7f8fb;
+  background: #f6f9fd;
 }
 .nav {
   position: sticky;
   top: 0;
   z-index: 100;
-  background: rgba(255, 255, 255, 0.86);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(12px);
-  border-bottom: 1px solid #eef0f4;
+  border-bottom: 1px solid #e3eaf3;
 }
 .nav-inner {
   max-width: 1120px;
   margin: 0 auto;
-  height: 64px;
+  height: 66px;
   padding: 0 24px;
   display: flex;
   align-items: center;
@@ -135,33 +144,32 @@ async function onCommand(cmd: string) {
   align-items: center;
   gap: 10px;
   cursor: pointer;
+  flex-shrink: 0;
 }
 .brand-logo {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
-  color: #fff;
-  font-weight: 700;
-  font-size: 15px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  letter-spacing: 0.5px;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #e3eaf3;
+  object-fit: contain;
+  padding: 2px;
+  box-sizing: border-box;
 }
 .brand-text {
   display: flex;
   flex-direction: column;
-  line-height: 1.2;
+  line-height: 1.25;
 }
 .brand-name {
   font-size: 15px;
   font-weight: 700;
-  color: #111827;
+  color: #0b1220;
+  white-space: nowrap;
 }
 .brand-sub {
   font-size: 11px;
-  color: #9ca3af;
+  color: #8a97a8;
 }
 .menu {
   display: flex;
@@ -170,25 +178,26 @@ async function onCommand(cmd: string) {
 }
 .menu-item {
   padding: 8px 16px;
-  border-radius: 8px;
+  border-radius: 6px;
   font-size: 14px;
   color: #4b5563;
   text-decoration: none;
   transition: all 0.2s;
 }
 .menu-item:hover {
-  color: #4f46e5;
-  background: #eef2ff;
+  color: #0b57d0;
+  background: #ecf3fd;
 }
 .menu-item.active {
-  color: #4f46e5;
+  color: #0b57d0;
   font-weight: 600;
-  background: #eef2ff;
+  background: #ecf3fd;
 }
 .nav-right {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 .user-chip {
   display: flex;
@@ -200,10 +209,10 @@ async function onCommand(cmd: string) {
   transition: background 0.2s;
 }
 .user-chip:hover {
-  background: #f3f4f6;
+  background: #f1f5f9;
 }
 .user-avatar {
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  background: #0a3d91;
   color: #fff;
   font-weight: 600;
 }
@@ -219,24 +228,40 @@ async function onCommand(cmd: string) {
   flex: 1;
 }
 .footer {
-  border-top: 1px solid #eef0f4;
-  background: #fff;
+  background: #061a3a;
+  border-top: 1px solid #0a3d91;
 }
 .footer-inner {
   max-width: 1120px;
   margin: 0 auto;
-  padding: 20px 24px;
+  padding: 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   font-size: 12px;
-  color: #9ca3af;
+  color: #9db4d8;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.footer-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.footer-logo {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: #fff;
+  padding: 2px;
+  box-sizing: border-box;
+  object-fit: contain;
 }
 .footer-link {
-  color: #6b7280;
+  color: #b9cceb;
   text-decoration: none;
 }
 .footer-link:hover {
-  color: #4f46e5;
+  color: #fff;
 }
 </style>

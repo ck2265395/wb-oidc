@@ -3,7 +3,7 @@
     <el-card class="login-card">
       <div class="brand">
         <div class="logo">🔐</div>
-        <h2>WB OIDC 管理后台</h2>
+        <h2>Moondrop 管理后台</h2>
         <p class="sub">使用管理员账号登录，管理第三方接入应用</p>
       </div>
 
@@ -86,7 +86,7 @@ async function submit() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #eef2ff 0%, #f8fafc 100%);
+  background: linear-gradient(135deg, #eaf2ff 0%, #f8fafc 100%);
 }
 .login-card {
   width: 400px;

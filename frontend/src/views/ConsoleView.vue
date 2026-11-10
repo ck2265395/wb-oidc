@@ -2,14 +2,14 @@
   <div class="console-page">
     <el-container class="layout">
       <el-aside width="210px" class="aside">
-        <div class="logo"><span class="logo-badge">WB</span> 管理控制台</div>
+        <div class="logo"><img class="logo-badge" src="/moondrop.ico" alt="M" /> Moondrop 控制台</div>
         <el-menu
           :default-active="route.path"
           router
           class="menu"
           background-color="#0f172a"
           text-color="#94a3b8"
-          active-text-color="#a5b4fc"
+          active-text-color="#8fb4ee"
         >
           <el-menu-item index="/console/overview">
             <span>📊 概览</span>
@@ -202,14 +202,11 @@ async function submitPassword() {
 .logo-badge {
   width: 26px;
   height: 26px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  border-radius: 6px;
+  background: #fff;
+  padding: 2px;
+  box-sizing: border-box;
+  object-fit: contain;
 }
 .menu {
   border-right: none;

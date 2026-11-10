@@ -3,8 +3,8 @@
     <div class="auth-card">
       <!-- 左侧品牌区 -->
       <div class="brand-side">
-        <div class="brand-logo">WB</div>
-        <h2 class="brand-title">WB 开放平台</h2>
+        <img class="brand-logo" src="/moondrop.ico" alt="Moondrop" />
+        <h2 class="brand-title">Moondrop 开放平台</h2>
         <p class="brand-desc">接入统一身份认证，触达全平台存量用户</p>
         <ul class="brand-points">
           <li>✓ 标准 OIDC 协议，主流客户端开箱即用</li>
@@ -183,9 +183,9 @@ onMounted(() => {
   justify-content: center;
   padding: 24px;
   background:
-    radial-gradient(900px 420px at 15% 0%, rgba(79, 70, 229, 0.16), transparent 60%),
-    radial-gradient(900px 420px at 90% 100%, rgba(124, 58, 237, 0.14), transparent 60%),
-    #f5f6ff;
+    radial-gradient(900px 420px at 15% 0%, rgba(11, 87, 208, 0.12), transparent 60%),
+    radial-gradient(900px 420px at 90% 100%, rgba(10, 61, 145, 0.1), transparent 60%),
+    #f2f7ff;
 }
 .auth-card {
   width: 860px;
@@ -201,27 +201,26 @@ onMounted(() => {
   width: 380px;
   flex-shrink: 0;
   padding: 48px 36px;
-  background: linear-gradient(160deg, #4338ca 0%, #6d28d9 60%, #7c3aed 100%);
+  background: linear-gradient(160deg, #061a3a 0%, #0a3d91 62%, #0b57d0 100%);
   color: #fff;
   display: flex;
   flex-direction: column;
 }
 .brand-logo {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 800;
-  font-size: 16px;
+  width: 46px;
+  height: 46px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  padding: 5px;
+  box-sizing: border-box;
+  object-fit: contain;
 }
 .brand-title {
   margin: 28px 0 8px;
   font-size: 24px;
   font-weight: 800;
+  color: #fff;
 }
 .brand-desc {
   font-size: 13px;

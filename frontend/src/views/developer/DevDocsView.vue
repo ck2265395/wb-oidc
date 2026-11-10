@@ -147,8 +147,8 @@ const sections = [
   transition: all 0.15s;
 }
 .toc-item:hover {
-  color: #4f46e5;
-  background: #eef2ff;
+  color: #0b57d0;
+  background: #ecf3fd;
 }
 .doc-block {
   background: #fff;

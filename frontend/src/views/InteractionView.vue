@@ -194,7 +194,7 @@ onMounted(loadDetails);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #eef2ff 0%, #e8f4ff 100%);
+  background: linear-gradient(135deg, #eaf2ff 0%, #f3f8ff 100%);
   padding: 24px;
 }
 .box-card {

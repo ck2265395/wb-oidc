@@ -1,0 +1,70 @@
+/* Moondrop 开放平台 · 商务蓝 / 白 / 黑 设计令牌 */
+:root {
+  /* 品牌蓝 */
+  --brand-900: #061a3a;
+  --brand-800: #082c66;
+  --brand-700: #0a3d91;
+  --brand-600: #0b57d0;
+  --brand-500: #1a6be0;
+  --brand-300: #8fb4ee;
+  --brand-100: #e2edff;
+  --brand-50: #f2f7ff;
+
+  /* 中性色 */
+  --ink-900: #0b1220;
+  --ink-700: #374151;
+  --ink-500: #6b7280;
+  --ink-300: #9ca3af;
+  --line: #e3eaf3;
+  --paper: #ffffff;
+  --canvas: #f6f9fd;
+
+  /* 覆盖 element-plus 主色：所有按钮 / 标签 / 菜单 / 链接统一商务蓝 */
+  --el-color-primary: #0b57d0;
+  --el-color-primary-light-3: #4a85e2;
+  --el-color-primary-light-5: #85aae8;
+  --el-color-primary-light-7: #c0d5f4;
+  --el-color-primary-light-8: #d9e5fa;
+  --el-color-primary-light-9: #ecf3fd;
+  --el-color-primary-dark-2: #0946a6;
+  --el-color-success: #17845a;
+  --el-border-radius-base: 6px;
+  --el-border-color: #dfe6ef;
+  --el-text-color-primary: #0b1220;
+  --el-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+}
+
+html,
+body {
+  margin: 0;
+  color: var(--ink-900);
+  background: var(--canvas);
+  font-family: var(--el-font-family);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 标题继承 body 的近黑色；深色背景区块由各页面自行覆写，避免全局规则误伤 */
+
+/* 主按钮：稳重实色 + 轻投影，不用花哨渐变 */
+.el-button--primary {
+  --el-button-bg-color: var(--brand-600);
+  --el-button-border-color: var(--brand-600);
+  --el-button-hover-bg-color: var(--brand-700);
+  --el-button-hover-border-color: var(--brand-700);
+  --el-button-active-bg-color: var(--brand-800);
+  --el-button-active-border-color: var(--brand-800);
+  box-shadow: 0 2px 8px rgba(11, 87, 208, 0.18);
+}
+
+.el-button--primary.is-link,
+.el-button--primary.is-text,
+.el-button--primary.is-plain {
+  box-shadow: none;
+}
+
+/* 链接 / 菜单激活色 */
+.el-link--primary,
+.el-menu-item.is-active {
+  color: var(--brand-600) !important;
+}
