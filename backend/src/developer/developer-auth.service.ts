@@ -9,19 +9,19 @@ import { DeveloperPrincipal, DeveloperRow } from './developer.types';
 const DUMMY_HASH = bcrypt.hashSync('dummy-password-for-timing', 10);
 
 /**
- * 开发者（门户第三方）认证。
+ * 门户账号认证 + 开发者资格。
+ *
+ * 流程：注册 → 立即 active 可登录（普通用户，developer_status=none）
+ *      → 需要创建应用时补齐资料申请开发者资格（pending）
+ *      → 管理员审核通过（approved）才能创建应用。
+ *
  * 与管理员共用 JWT 密钥但 typ 不同（developer_access），Guard 严格区分；
  * refresh 采用与管理员相同的 httpOnly cookie 轮换机制。
  */
 @Injectable()
 export class DeveloperAuthService {
-  async register(
-    email: string,
-    password: string,
-    company: string,
-    contact: string,
-    ip?: string,
-  ): Promise<void> {
+  /** 注册即普通用户，无需审核，不采集开发者资料 */
+  async register(email: string, password: string, ip?: string): Promise<void> {
     const mail = (email || '').trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
       throw new BadRequestException('邮箱格式不正确');
@@ -34,9 +34,9 @@ export class DeveloperAuthService {
     }
     const hash = await bcrypt.hash(password, 10);
     await pool.query(
-      `INSERT INTO oidc_developer (email, password_hash, company, contact)
-       VALUES ($1,$2,$3,$4)`,
-      [mail, hash, (company || '').slice(0, 128), (contact || '').slice(0, 64)],
+      `INSERT INTO oidc_developer (email, password_hash, status, developer_status)
+       VALUES ($1,$2,'active','none')`,
+      [mail, hash],
     );
     void ip;
   }
@@ -58,9 +58,6 @@ export class DeveloperAuthService {
     if (!row || !ok) {
       throw new UnauthorizedException('邮箱或密码不正确');
     }
-    if (row.status === 'pending') {
-      throw new ForbiddenException('账号正在等待管理员审核，审核通过后即可登录');
-    }
     if (row.status === 'suspended') {
       throw new ForbiddenException(`账号已被停用${row.reject_reason ? `：${row.reject_reason}` : ''}`);
     }
@@ -68,20 +65,15 @@ export class DeveloperAuthService {
     await getPool().query('UPDATE oidc_developer SET last_login_at = NOW() WHERE id = $1', [
       row.id,
     ]);
-    const principal: DeveloperPrincipal = { id: row.id, email: row.email, status: row.status };
-    const cfg = this.cfg;
-    const accessToken = jwt.sign(
-      { sub: String(row.id), email: row.email, status: row.status, typ: 'developer_access' },
-      cfg.jwtSecret,
-      { algorithm: 'HS256', expiresIn: cfg.accessTtlSeconds },
-    );
+    const principal = this.principal(row);
+    const accessToken = this.signAccess(principal);
     const refreshToken = await this.createSession(row.id, ip, userAgent);
     return {
       accessToken,
-      expiresIn: cfg.accessTtlSeconds,
+      expiresIn: this.cfg.accessTtlSeconds,
       developer: principal,
       refreshToken,
-      refreshTtlSeconds: cfg.refreshTtlDays * 86400,
+      refreshTtlSeconds: this.cfg.refreshTtlDays * 86400,
     };
   }
 
@@ -105,20 +97,14 @@ export class DeveloperAuthService {
     await getPool().query('UPDATE oidc_developer_session SET revoked_at = NOW() WHERE id = $1', [
       row.session_id,
     ]);
-    const cfg = this.cfg;
-    const principal: DeveloperPrincipal = { id: row.id, email: row.email, status: row.status };
-    const accessToken = jwt.sign(
-      { sub: String(row.id), email: row.email, status: row.status, typ: 'developer_access' },
-      cfg.jwtSecret,
-      { algorithm: 'HS256', expiresIn: cfg.accessTtlSeconds },
-    );
+    const principal = this.principal(row);
     const refreshToken = await this.createSession(row.id, ip, userAgent);
     return {
-      accessToken,
-      expiresIn: cfg.accessTtlSeconds,
+      accessToken: this.signAccess(principal),
+      expiresIn: this.cfg.accessTtlSeconds,
       developer: principal,
       refreshToken,
-      refreshTtlSeconds: cfg.refreshTtlDays * 86400,
+      refreshTtlSeconds: this.cfg.refreshTtlDays * 86400,
     };
   }
 
@@ -138,10 +124,17 @@ export class DeveloperAuthService {
         sub: string;
         email: string;
         status: DeveloperRow['status'];
+        developer_status?: DeveloperRow['developer_status'];
         typ?: string;
       };
       if (payload.typ !== 'developer_access') throw new Error('wrong token type');
-      return { id: Number(payload.sub), email: payload.email, status: payload.status };
+      return {
+        id: Number(payload.sub),
+        email: payload.email,
+        status: payload.status,
+        // 兼容升级前签发的旧 token
+        developer_status: payload.developer_status || 'none',
+      };
     } catch {
       throw new UnauthorizedException('登录已失效，请重新登录');
     }
@@ -150,11 +143,70 @@ export class DeveloperAuthService {
   async me(id: number) {
     const { rows } = await getPool().query('SELECT * FROM oidc_developer WHERE id = $1 LIMIT 1', [id]);
     const row = rows[0] as DeveloperRow | undefined;
-    if (!row) throw new UnauthorizedException('开发者不存在');
+    if (!row) throw new UnauthorizedException('用户不存在');
     return row;
   }
 
-  /** 吊销某开发者全部会话（审核状态变化时调用） */
+  /**
+   * 申请成为开发者：补齐资料后进入待审核。
+   * 仅普通用户（none）或被驳回（rejected）可提交；pending 不可重复提交，approved 已无需申请。
+   */
+  async applyDeveloper(id: number, company: string, contact: string): Promise<DeveloperRow> {
+    const org = (company || '').trim();
+    const phone = (contact || '').trim();
+    if (org.length < 2) throw new BadRequestException('请填写公司 / 团队名称（至少 2 个字符）');
+    if (phone.length < 2) throw new BadRequestException('请填写联系方式');
+    if (org.length > 128 || phone.length > 64) {
+      throw new BadRequestException('资料长度超出限制');
+    }
+    const pool = getPool();
+    const { rows } = await pool.query<DeveloperRow>(
+      `UPDATE oidc_developer
+          SET company = $2, contact = $3,
+              developer_status = 'pending', developer_reject_reason = '',
+              developer_applied_at = NOW(), updated_at = NOW()
+        WHERE id = $1
+          AND status = 'active'
+          AND developer_status IN ('none','rejected')
+        RETURNING *`,
+      [id, org, phone],
+    );
+    if (!rows.length) {
+      const current = await this.me(id);
+      if (current.developer_status === 'pending') {
+        throw new BadRequestException('申请正在审核中，请耐心等待');
+      }
+      if (current.developer_status === 'approved') {
+        throw new BadRequestException('你已通过开发者审核，无需重复申请');
+      }
+      throw new ForbiddenException('账号当前不可申请开发者资格');
+    }
+    return rows[0];
+  }
+
+  /**
+   * 创建/修改应用前的实时资格校验。
+   * 必须查库而不能只信 JWT：管理员审核通过后，用户手上的旧 token 仍是旧状态。
+   */
+  async assertDeveloperApproved(id: number): Promise<void> {
+    const row = await this.me(id);
+    if (row.status !== 'active') {
+      throw new ForbiddenException('账号已被停用，无法管理应用');
+    }
+    if (row.developer_status === 'none') {
+      throw new ForbiddenException('请先申请成为开发者，审核通过后才能创建应用');
+    }
+    if (row.developer_status === 'pending') {
+      throw new ForbiddenException('开发者资格正在审核中，审核通过后才能创建应用');
+    }
+    if (row.developer_status === 'rejected') {
+      throw new ForbiddenException(
+        `开发者资格申请未通过${row.developer_reject_reason ? `：${row.developer_reject_reason}` : ''}，请补齐资料后重新提交`,
+      );
+    }
+  }
+
+  /** 吊销某用户全部会话（账号状态变化时调用） */
   async revokeAllSessions(developerId: number): Promise<void> {
     await getPool().query(
       'UPDATE oidc_developer_session SET revoked_at = NOW() WHERE developer_id = $1 AND revoked_at IS NULL',
@@ -164,6 +216,29 @@ export class DeveloperAuthService {
 
   private get cfg() {
     return loadConfig().adminAuth; // 与管理员共用 JWT 密钥，typ 字段区分
+  }
+
+  private principal(row: DeveloperRow): DeveloperPrincipal {
+    return {
+      id: row.id,
+      email: row.email,
+      status: row.status,
+      developer_status: row.developer_status,
+    };
+  }
+
+  private signAccess(principal: DeveloperPrincipal): string {
+    return jwt.sign(
+      {
+        sub: String(principal.id),
+        email: principal.email,
+        status: principal.status,
+        developer_status: principal.developer_status,
+        typ: 'developer_access',
+      },
+      this.cfg.jwtSecret,
+      { algorithm: 'HS256', expiresIn: this.cfg.accessTtlSeconds },
+    );
   }
 
   private async createSession(developerId: number, ip?: string, userAgent?: string): Promise<string> {

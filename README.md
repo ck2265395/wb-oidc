@@ -21,18 +21,18 @@ wb-oidc/
 │   │   │   └── legacy/legacy-user.service.ts  # 老库用户校验（bcrypt/md5/sha1/...，只读连老系统 PG）
 │   │   ├── clients/             # 第三方应用管理（注册/密钥/回调白名单/启停/审核）
 │   │   ├── admin/               # 管理员鉴权、账号管理、审计、概览/会话/老库查询
-│   │   ├── developer/           # 开发者门户后端（注册/登录/应用申请/审核）
+│   │   ├── developer/           # 开发者门户后端（注册/登录/资格申请/应用申请/审核）
 │   │   └── health/health.controller.ts
 │   └── scripts/
 │       ├── seed.mjs             # 建表 + 注册示例应用 + 首个超管
 │       ├── verify-legacy.mjs    # 探测老库密码算法
-│       └── smoke-all.mjs        # 全链路冒烟（37 项断言）
+│       └── smoke-all.mjs        # 全链路冒烟（46 项断言）
 ├── frontend/
 │   └── src/
 │       ├── views/
 │       │   ├── InteractionView.vue      # 统一登录页 / consent 授权页
 │       │   ├── ConsoleView.vue          # 管理控制台布局
-│       │   ├── console/                 # 概览/应用/开发者审核/管理员/审计/会话/老库用户
+│       │   ├── console/                 # 概览/应用/用户与开发者/管理员/审计/会话/老库用户
 │       │   ├── developer/               # 开发者门户（登录注册/我的应用/接入文档）
 │       │   ├── LoginView.vue            # 管理员登录
 │       │   └── CallbackView.vue         # PKCE 回调演示（code → token → userinfo）
@@ -112,11 +112,14 @@ cd frontend && npm install && npm run build
 
 ### A. 开发者门户自助接入
 
-1. 打开 `/developer/login` → 注册（邮箱 + 密码 + 公司/联系方式）→ 状态 `pending`
-2. 管理员在控制台「开发者审核」通过 → 开发者可登录
-3. 开发者「我的应用」提交申请（名称/回调/scopes）→ 应用 `pending`，此时无法发起授权
-4. 管理员在「应用管理」审核通过 → 应用 `approved`，可正常走 OIDC
-5. 开发者修改**回调地址或 scope** → 自动回到 `pending` 重新审核（名称改动不触发）
+1. 打开 `/developer/login` → **注册（只需邮箱 + 密码）→ 立即可以登录**，此时是普通用户（`developer_status=none`），可浏览首页与接入文档
+2. 进入「我的应用」→ 提示「申请成为开发者」，填写**公司 / 团队 + 联系方式**（资料必须齐全）→ 提交后 `developer_status=pending`
+3. 管理员在控制台「用户与开发者」审核资格：通过 → `approved`；驳回（填理由）→ `rejected`，用户可改资料重新提交
+4. **资格 `approved` 后才能创建应用**：提交名称 / 回调 / scopes → 应用 `pending`，此时无法发起授权
+5. 管理员在「应用管理」审核通过 → 应用 `approved`，可正常走 OIDC
+6. 开发者修改**回调地址或 scope** → 自动回到 `pending` 重新审核（名称改动不触发）
+
+> 账号状态（能否登录）与开发者资格（能否建应用）是两个独立字段；创建应用时服务端**实时查库**校验资格，不依赖 JWT 里签发的旧状态。
 
 ### B. 管理端直接注册
 
@@ -170,7 +173,7 @@ npm run seed                      # 建表 + 示例客户端 + 首个超级管�
 npm run reset-admin -- admin      # 忘记密码时重置，凭据写入 backend/.admin-credentials.txt
 npm run smoke:admin -- http://127.0.0.1:3000    # 鉴权链路冒烟（9 项断言）
 npm run smoke:password -- http://127.0.0.1:3000 # 改密码链路冒烟（9 项断言，测完自动恢复原密码）
-npm run smoke:all -- http://127.0.0.1:3200      # 全链路冒烟：开发者门户 + 审核 + OIDC + 审计/会话/老库（37 项）
+npm run smoke:all -- http://127.0.0.1:3200      # 全链路冒烟：开发者门户 + 审核 + OIDC + 审计/会话/老库（46 项）
 ```
 
 管理员接口（需 `super_admin`）：
@@ -196,8 +199,9 @@ npm run smoke:all -- http://127.0.0.1:3200      # 全链路冒烟：开发者门
 | POST | `/api/admin/clients/:clientId/review` | 审核 `{ action: approve\|reject\|suspend, reason }` |
 | POST | `/api/admin/clients/:clientId/rotate-secret` | 轮换 secret |
 | DELETE | `/api/admin/clients/:clientId` | 删除 |
-| GET | `/api/admin/developers` | 开发者列表（可按 status 过滤，仅超管） |
-| PATCH | `/api/admin/developers/:id/status` | 审核/启停开发者 `{ status, reason }` |
+| GET | `/api/admin/developers` | 用户/开发者列表（按 `status=none\|pending\|approved\|rejected\|suspended` 过滤，仅超管） |
+| PATCH | `/api/admin/developers/:id/review` | 审核开发者资格 `{ action: approve\|reject, reason }` |
+| PATCH | `/api/admin/developers/:id/status` | 账号启停 `{ status: active\|suspended, reason }` |
 | GET | `/api/admin/logs` | 审计日志（page/size/action/username） |
 | GET | `/api/admin/overview` | 概览统计（应用/开发者/会话/老库用户数 + 最近操作） |
 | GET | `/api/admin/sessions` | OIDC 终端用户会话列表 |
@@ -208,14 +212,15 @@ npm run smoke:all -- http://127.0.0.1:3200      # 全链路冒烟：开发者门
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| POST | `/api/developer/auth/register` | 注册 `{ email, password, company, contact }` → pending |
-| POST | `/api/developer/auth/login` | 登录（仅 active 可登录，独立 cookie） |
-| GET | `/api/developer/auth/me` | 当前开发者 |
+| POST | `/api/developer/auth/register` | 注册 `{ email, password }` → 立即 `active` 可登录，资格 `none` |
+| POST | `/api/developer/auth/login` | 登录（仅 `active` 账号，独立 cookie） |
+| GET | `/api/developer/auth/me` | 当前用户（含账号状态 / 开发者资格 / 驳回原因 / 申请时间） |
+| POST | `/api/developer/apply` | 申请开发者资格 `{ company, contact }` → `pending`（仅 `none` / `rejected` 可提交） |
 | GET | `/api/developer/apps` | 我的应用列表 |
-| POST | `/api/developer/apps` | 提交应用申请 → pending |
-| PATCH | `/api/developer/apps/:clientId` | 编辑（改回调/scope 自动回 pending） |
+| POST | `/api/developer/apps` | 提交应用申请 → `pending`（**需资格 `approved`**，否则 403） |
+| PATCH | `/api/developer/apps/:clientId` | 编辑（改回调/scope 自动回 `pending`） |
 
-全链路冒烟（37 项断言，自带临时超管并在结束后清理数据）：
+全链路冒烟（46 项断言，自带临时超管并在结束后清理数据）：
 
 ```bash
 cd backend && npm run build

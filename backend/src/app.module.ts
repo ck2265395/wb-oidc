@@ -14,6 +14,7 @@ import { DeveloperAuthService } from './developer/developer-auth.service';
 import { DeveloperGuard } from './developer/developer.guard';
 import { DeveloperAuthController } from './developer/developer-auth.controller';
 import { DeveloperAppsController } from './developer/developer-apps.controller';
+import { DeveloperApplyController } from './developer/developer-apply.controller';
 import { AdminDevelopersController } from './developer/admin-developers.controller';
 
 @Module({
@@ -24,6 +25,7 @@ import { AdminDevelopersController } from './developer/admin-developers.controll
     HealthController,
     DeveloperAuthController,
     DeveloperAppsController,
+    DeveloperApplyController,
     AdminDevelopersController,
     AdminOpsController,
   ],

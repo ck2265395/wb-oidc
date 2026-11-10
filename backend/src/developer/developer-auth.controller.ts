@@ -31,20 +31,17 @@ export class DeveloperAuthController {
   @Post('register')
   @HttpCode(200)
   async register(
-    @Body()
-    body: { email?: string; password?: string; company?: string; contact?: string },
+    @Body() body: { email?: string; password?: string },
     @Req() req: Request,
   ) {
     await this.auth.register(
       String(body?.email || ''),
       String(body?.password || ''),
-      String(body?.company || ''),
-      String(body?.contact || ''),
       req.ip,
     );
     return {
       ok: true,
-      message: '注册成功，等待管理员审核，审核通过后即可登录提交应用',
+      message: '注册成功，现在即可登录。若需创建应用，登录后再申请开发者资格。',
     };
   }
 
@@ -105,6 +102,9 @@ export class DeveloperAuthController {
         company: row.company,
         contact: row.contact,
         status: row.status,
+        developer_status: row.developer_status,
+        developer_reject_reason: row.developer_reject_reason,
+        developer_applied_at: row.developer_applied_at,
         reject_reason: row.reject_reason,
         last_login_at: row.last_login_at,
         created_at: row.created_at,

@@ -7,7 +7,7 @@
       type="warning"
       show-icon
       :closable="false"
-      :title="`有 ${pendingTotal} 条待审核：开发者 ${stats.developers.pending} 个、应用 ${stats.clients.pending} 个`"
+      :title="`有 ${pendingTotal} 条待审核：开发者资格 ${stats.developers.pending} 个、应用 ${stats.clients.pending} 个`"
     />
 
     <el-row :gutter="16">
@@ -21,9 +21,9 @@
       </el-col>
       <el-col :span="6">
         <el-card shadow="hover">
-          <el-statistic title="第三方开发者" :value="num(stats.developers.total)" />
+          <el-statistic title="门户注册用户" :value="num(stats.developers.total)" />
           <div class="stat-sub">
-            已通过 {{ num(stats.developers.active) }} · 待审 {{ num(stats.developers.pending) }}
+            已认证 {{ num(stats.developers.active) }} · 待审 {{ num(stats.developers.pending) }} · 普通 {{ num(stats.developers.normal) }}
           </div>
         </el-card>
       </el-col>
@@ -70,7 +70,7 @@
               📦 应用管理（{{ num(stats.clients.pending) }} 个待审核）
             </el-button>
             <el-button plain @click="$router.push('/console/developers')">
-              👥 开发者审核（{{ num(stats.developers.pending) }} 个待审核）
+              👥 用户与开发者（{{ num(stats.developers.pending) }} 个待审核）
             </el-button>
             <el-button plain @click="$router.push('/console/legacy-users')">
               🔍 老库用户查询
@@ -91,7 +91,7 @@ import api from '../../api';
 
 interface OverviewStats {
   clients: { total: string; pending: string; approved: string; rejected: string; suspended: string };
-  developers: { total: string; pending: string; active: string; suspended: string };
+  developers: { total: string; pending: string; active: string; suspended: string; normal: string };
   admin_sessions_active: string;
   provider_sessions: string;
   legacy_users: string;
@@ -107,7 +107,7 @@ interface OverviewStats {
 const loading = ref(false);
 const stats = ref<OverviewStats>({
   clients: { total: '0', pending: '0', approved: '0', rejected: '0', suspended: '0' },
-  developers: { total: '0', pending: '0', active: '0', suspended: '0' },
+  developers: { total: '0', pending: '0', active: '0', suspended: '0', normal: '0' },
   admin_sessions_active: '0',
   provider_sessions: '0',
   legacy_users: '0',

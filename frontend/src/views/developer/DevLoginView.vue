@@ -8,7 +8,8 @@
         <p class="brand-desc">接入统一身份认证，触达全平台存量用户</p>
         <ul class="brand-points">
           <li>✓ 标准 OIDC 协议，主流客户端开箱即用</li>
-          <li>✓ 用户免注册，现有账号一键登录</li>
+          <li>✓ 注册即可登录，无需等待审核</li>
+          <li>✓ 创建应用时再申请开发者资格</li>
           <li>✓ 回调白名单 + 应用审核双重把关</li>
         </ul>
         <div class="brand-deco">
@@ -35,7 +36,7 @@
             </el-form>
           </el-tab-pane>
 
-          <el-tab-pane label="注册开发者" name="register">
+          <el-tab-pane label="注册账号" name="register">
             <el-form ref="regFormRef" :model="regForm" :rules="regRules" label-position="top" size="large">
               <el-form-item label="邮箱" prop="email">
                 <el-input v-model="regForm.email" placeholder="you@company.com" />
@@ -43,26 +44,14 @@
               <el-form-item label="密码" prop="password">
                 <el-input v-model="regForm.password" type="password" show-password placeholder="至少 10 位，含字母和数字" />
               </el-form-item>
-              <el-row :gutter="12">
-                <el-col :span="12">
-                  <el-form-item label="公司 / 团队">
-                    <el-input v-model="regForm.company" placeholder="选填，便于审核" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12">
-                  <el-form-item label="联系方式">
-                    <el-input v-model="regForm.contact" placeholder="选填" />
-                  </el-form-item>
-                </el-col>
-              </el-row>
               <el-button type="primary" class="block" size="large" :loading="submitting" @click="submitRegister">
-                提交注册申请
+                注册账号
               </el-button>
               <el-alert
                 class="reg-tip"
                 type="info"
                 :closable="false"
-                title="提交后进入人工审核，通过后即可登录并提交应用。"
+                title="注册后即可登录。如需创建应用，登录后再补齐资料申请开发者资格。"
               />
             </el-form>
           </el-tab-pane>
@@ -111,7 +100,7 @@ const loginRules: FormRules = {
 };
 
 const regFormRef = ref<FormInstance>();
-const regForm = ref({ email: '', password: '', company: '', contact: '' });
+const regForm = ref({ email: '', password: '' });
 const regRules: FormRules = {
   email: [
     { required: true, message: '请输入邮箱', trigger: 'blur' },
@@ -155,11 +144,10 @@ async function submitRegister() {
     const message = await devRegister({
       email: regForm.value.email,
       password: regForm.value.password,
-      company: regForm.value.company,
-      contact: regForm.value.contact,
     });
-    regOkMessage.value = message || '注册成功，等待管理员审核';
+    regOkMessage.value = message || '注册成功，现在可以直接登录';
     regOkVisible.value = true;
+    loginForm.value.email = regForm.value.email;
     regFormRef.value.resetFields();
     tab.value = 'login';
   } catch (e) {

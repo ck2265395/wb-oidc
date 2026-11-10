@@ -1,7 +1,8 @@
 /**
- * 全链路冒烟测试（M1–M6）：
- * 管理端鉴权 → 开发者注册/审核 → 应用申请/审核 → OIDC 授权闸门 →
- * 改回调回退待审 → 越权隔离 → 审计/概览/会话/老库用户接口 → 清理测试数据。
+ * 全链路冒烟测试：
+ * 管理端鉴权 → 注册即登录（普通用户）→ 申请开发者资格 → 驳回/重提/审核通过 →
+ * 应用申请/审核 → OIDC 授权闸门 → 改回调回退待审 → 越权隔离 →
+ * 审计/概览/会话/老库用户接口 → 清理测试数据。
  *
  * 用法：node scripts/smoke-all.mjs [baseUrl]
  * 默认 http://localhost:3200，且服务必须指向测试库。
@@ -16,7 +17,6 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const BACKEND = resolve(__dirname, '..');
 const BASE = process.argv[2] || 'http://localhost:3200';
 
-// 读取 backend/.env
 function loadEnv() {
   const env = { ...process.env };
   try {
@@ -47,10 +47,10 @@ const pool = new Pool({
 
 const suffix = Date.now().toString(36);
 const ADMIN_USER = `smoke_admin_${suffix}`;
-const ADMIN_PASS = 'SmokeAdmin1234';
+const ADMIN_PWD = 'SmokeAdmin1234';
 const DEV_EMAIL = `smoke_dev_${suffix}@example.com`;
 const DEV2_EMAIL = `smoke_dev2_${suffix}@example.com`;
-const DEV_PASS = 'SmokeDev12345';
+const DEV_PWD = 'SmokeDev12345';
 const REDIRECT = 'https://dev.example.com/cb';
 const REDIRECT_NEW = 'https://dev.example.com/cb2';
 
@@ -91,11 +91,9 @@ async function req(method, path, { token, body, raw } = {}) {
 async function main() {
   console.log(`\n===== 全链路冒烟测试 @ ${BASE} =====\n`);
 
-  // 0. 健康检查
+  // 0. 健康检查 + 前端路由
   const health = await req('GET', '/api/health');
   check('健康检查 /api/health', health.status === 200 && health.data?.status === 'ok');
-
-  // 0.1 前端路由可访问
   const feLogin = await req('GET', '/developer/login');
   check(
     '开发者门户页面可访问',
@@ -103,66 +101,129 @@ async function main() {
   );
 
   // 准备：临时超管（直接写库，测完删除）
-  const hash = bcrypt.hashSync(ADMIN_PASS, 10);
+  const hash = bcrypt.hashSync(ADMIN_PWD, 10);
   await pool.query(
     `INSERT INTO oidc_admin (username, password_hash, display_name, role, enabled)
      VALUES ($1,$2,'冒烟测试超管','super_admin',TRUE)`,
     [ADMIN_USER, hash],
   );
 
-  // 1. 管理员登录
+  // 1. 管理员登录 + 鉴权
   const adminLogin = await req('POST', '/api/admin/auth/login', {
-    body: { username: ADMIN_USER, password: ADMIN_PASS },
+    body: { username: ADMIN_USER, password: ADMIN_PWD },
   });
   const adminToken = adminLogin.data?.access_token;
   check('管理员登录', adminLogin.status === 200 && !!adminToken);
-
-  // 2. 未带 token 访问管理接口
   const noToken = await req('GET', '/api/admin/clients');
   check('管理接口无 token 拒绝（401）', noToken.status === 401);
 
-  // 3. 开发者注册
+  // 2. 注册：只需邮箱密码，注册即可登录（普通用户）
   const devReg = await req('POST', '/api/developer/auth/register', {
-    body: { email: DEV_EMAIL, password: DEV_PASS, company: '冒烟测试公司', contact: '13800000000' },
+    body: { email: DEV_EMAIL, password: DEV_PWD },
   });
-  check('开发者注册', devReg.status === 200 && devReg.data?.ok === true);
-
-  // 3.1 重复注册
+  check('注册无需审核（200）', devReg.status === 200 && devReg.data?.ok === true);
   const devDup = await req('POST', '/api/developer/auth/register', {
-    body: { email: DEV_EMAIL, password: DEV_PASS },
+    body: { email: DEV_EMAIL, password: DEV_PWD },
   });
   check('重复邮箱注册被拒（409/400）', devDup.status === 409 || devDup.status === 400, `status=${devDup.status}`);
 
-  // 4. 待审核状态不能登录
-  const devLoginPending = await req('POST', '/api/developer/auth/login', {
-    body: { email: DEV_EMAIL, password: DEV_PASS },
-  });
-  check('开发者待审核登录被拒（403）', devLoginPending.status === 403);
-
-  // 5. 管理员查看待审核开发者
-  const devList = await req('GET', '/api/admin/developers?status=pending', { token: adminToken });
-  const devRow = devList.data?.data?.find((d) => d.email === DEV_EMAIL);
-  check('管理端可见待审核开发者', devList.status === 200 && !!devRow);
-
-  // 6. 管理员审核通过
-  const devApprove = await req('PATCH', `/api/admin/developers/${devRow?.id}/status`, {
-    token: adminToken,
-    body: { status: 'active' },
-  });
-  check('管理员审核开发者通过', devApprove.status === 200 && devApprove.data?.data?.status === 'active');
-
-  // 7. 审核通过后登录
   const devLogin = await req('POST', '/api/developer/auth/login', {
-    body: { email: DEV_EMAIL, password: DEV_PASS },
+    body: { email: DEV_EMAIL, password: DEV_PWD },
   });
   const devToken = devLogin.data?.access_token;
-  check('开发者登录成功', devLogin.status === 200 && !!devToken);
-  check('开发者状态为 active', devLogin.data?.developer?.status === 'active');
+  check('注册后立即登录成功', devLogin.status === 200 && !!devToken);
+  check(
+    '登录返回开发者资格 = none（普通用户）',
+    devLogin.data?.developer?.developer_status === 'none' && devLogin.data?.developer?.status === 'active',
+  );
 
-  const devMe = await req('GET', '/api/developer/auth/me', { token: devToken });
-  check('开发者 /me', devMe.status === 200 && devMe.data?.data?.email === DEV_EMAIL);
+  const devMe0 = await req('GET', '/api/developer/auth/me', { token: devToken });
+  check(
+    '/me 返回完整资格字段',
+    devMe0.status === 200 &&
+      devMe0.data?.data?.email === DEV_EMAIL &&
+      devMe0.data?.data?.developer_status === 'none' &&
+      devMe0.data?.data?.company === '',
+  );
 
-  // 8. 提交应用申请
+  // 3. 普通用户不能创建应用
+  const appBefore = await req('POST', '/api/developer/apps', {
+    token: devToken,
+    body: { client_name: '未授权应用', redirect_uris: [REDIRECT] },
+  });
+  check('普通用户创建应用被拒（403）', appBefore.status === 403, `status=${appBefore.status}`);
+  const listBefore = await req('GET', '/api/developer/apps', { token: devToken });
+  check('普通用户可查看应用列表（空）', listBefore.status === 200 && (listBefore.data?.data || []).length === 0);
+
+  // 4. 申请开发者资格：资料齐全才收
+  const applyBad = await req('POST', '/api/developer/apply', {
+    token: devToken,
+    body: { company: '', contact: '13800000000' },
+  });
+  check('开发者资料不齐全被拒（400）', applyBad.status === 400, `status=${applyBad.status}`);
+
+  const apply = await req('POST', '/api/developer/apply', {
+    token: devToken,
+    body: { company: '冒烟测试公司', contact: '13800000000' },
+  });
+  check(
+    '提交开发者资格申请 → pending',
+    apply.status === 200 &&
+      apply.data?.data?.developer_status === 'pending' &&
+      apply.data?.data?.company === '冒烟测试公司',
+  );
+  const applyDup = await req('POST', '/api/developer/apply', {
+    token: devToken,
+    body: { company: '冒烟测试公司', contact: '13800000000' },
+  });
+  check('重复提交申请被拒（400）', applyDup.status === 400, `status=${applyDup.status}`);
+  const appPending = await req('POST', '/api/developer/apps', {
+    token: devToken,
+    body: { client_name: '待审期间应用', redirect_uris: [REDIRECT] },
+  });
+  check('资格待审期间创建应用被拒（403）', appPending.status === 403);
+
+  // 5. 管理员审核：先驳回 → 再提交 → 通过
+  const devList = await req('GET', '/api/admin/developers?status=pending', { token: adminToken });
+  const devRow = devList.data?.data?.find((d) => d.email === DEV_EMAIL);
+  check('管理端可见待审核资格申请（含资料）', devList.status === 200 && !!devRow && devRow.company === '冒烟测试公司');
+
+  const reject = await req('PATCH', `/api/admin/developers/${devRow?.id}/review`, {
+    token: adminToken,
+    body: { action: 'reject', reason: '资料不完整，请补充联系方式' },
+  });
+  check(
+    '管理员驳回资格申请 → rejected',
+    reject.status === 200 && reject.data?.data?.developer_status === 'rejected',
+  );
+  const meRejected = await req('GET', '/api/developer/auth/me', { token: devToken });
+  check(
+    '用户可见驳回原因（无需重新登录）',
+    meRejected.data?.data?.developer_status === 'rejected' &&
+      String(meRejected.data?.data?.developer_reject_reason || '').includes('资料不完整'),
+  );
+  const appRejected = await req('POST', '/api/developer/apps', {
+    token: devToken,
+    body: { client_name: '驳回后应用', redirect_uris: [REDIRECT] },
+  });
+  check('资格被驳回后创建应用被拒（403）', appRejected.status === 403);
+
+  const reApply = await req('POST', '/api/developer/apply', {
+    token: devToken,
+    body: { company: '冒烟测试公司（补充）', contact: '13900000000' },
+  });
+  check('可修改资料重新提交 → pending', reApply.status === 200 && reApply.data?.data?.developer_status === 'pending');
+
+  const approve = await req('PATCH', `/api/admin/developers/${devRow?.id}/review`, {
+    token: adminToken,
+    body: { action: 'approve' },
+  });
+  check(
+    '管理员通过资格申请 → approved',
+    approve.status === 200 && approve.data?.data?.developer_status === 'approved',
+  );
+
+  // 6. 资格通过后用同一个旧 token 创建应用（验证服务端实时查库）
   const appCreate = await req('POST', '/api/developer/apps', {
     token: devToken,
     body: {
@@ -174,14 +235,14 @@ async function main() {
   });
   const clientId = appCreate.data?.client_id;
   check(
-    '开发者创建应用（pending）',
+    '资格通过后创建应用（pending）',
     (appCreate.status === 200 || appCreate.status === 201) &&
       appCreate.data?.data?.status === 'pending' &&
       !!clientId,
   );
   check('创建时返回 client_secret', !!appCreate.data?.client_secret);
 
-  // 9. pending 应用发起授权 → 被拒
+  // 7. 应用审核流
   const authPending = await req(
     'GET',
     `/auth?client_id=${clientId}&response_type=code&scope=openid&redirect_uri=${encodeURIComponent(REDIRECT)}&state=s1`,
@@ -189,7 +250,6 @@ async function main() {
   );
   check('pending 应用授权被拒（400）', authPending.status === 400);
 
-  // 10. 管理端列表带申请人邮箱与状态
   const adminClients = await req('GET', '/api/admin/clients', { token: adminToken });
   const clientRow = adminClients.data?.data?.find((c) => c.client_id === clientId);
   check(
@@ -197,7 +257,6 @@ async function main() {
     adminClients.status === 200 && clientRow?.developer_email === DEV_EMAIL && clientRow?.status === 'pending',
   );
 
-  // 11. 管理员审核通过应用
   const appApprove = await req('POST', `/api/admin/clients/${clientId}/review`, {
     token: adminToken,
     body: { action: 'approve' },
@@ -205,7 +264,6 @@ async function main() {
   check('管理员审核应用通过', appApprove.status === 201 || appApprove.status === 200);
   check('应用状态 = approved', appApprove.data?.data?.status === 'approved');
 
-  // 12. 审核通过后授权正常（303 跳 interaction）
   const authOk = await req(
     'GET',
     `/auth?client_id=${clientId}&response_type=code&scope=openid&redirect_uri=${encodeURIComponent(REDIRECT)}&state=s1`,
@@ -213,30 +271,27 @@ async function main() {
   );
   check('approved 应用授权通过（303）', authOk.status === 303, `Location: ${authOk.headers.get('location') || '-'}`);
 
-  // 13. 开发者改回调 → 回退 pending
   const devEdit = await req('PATCH', `/api/developer/apps/${clientId}`, {
     token: devToken,
     body: { redirect_uris: [REDIRECT_NEW] },
   });
   check('开发者修改回调成功', devEdit.status === 200);
   check('改回调后回退 pending', devEdit.data?.data?.status === 'pending');
-
-  // 14. 再审核通过（恢复状态，便于后续清理判断）
   const appApprove2 = await req('POST', `/api/admin/clients/${clientId}/review`, {
     token: adminToken,
     body: { action: 'approve' },
   });
   check('二次审核通过', appApprove2.data?.data?.status === 'approved');
 
-  // 15. 越权隔离：第二个开发者访问别人的应用 → 404
-  const dev2Hash = bcrypt.hashSync(DEV_PASS, 10);
+  // 8. 越权隔离
+  const dev2Hash = bcrypt.hashSync(DEV_PWD, 10);
   await pool.query(
-    `INSERT INTO oidc_developer (email, password_hash, company, contact, status)
-     VALUES ($1,$2,'越权测试公司','-','active')`,
+    `INSERT INTO oidc_developer (email, password_hash, company, contact, status, developer_status)
+     VALUES ($1,$2,'越权测试公司','-','active','approved')`,
     [DEV2_EMAIL, dev2Hash],
   );
   const dev2Login = await req('POST', '/api/developer/auth/login', {
-    body: { email: DEV2_EMAIL, password: DEV_PASS },
+    body: { email: DEV2_EMAIL, password: DEV_PWD },
   });
   const dev2Token = dev2Login.data?.access_token;
   const crossEdit = await req('PATCH', `/api/developer/apps/${clientId}`, {
@@ -244,43 +299,37 @@ async function main() {
     body: { redirect_uris: ['https://evil.example.com/cb'] },
   });
   check('跨开发者改应用被拒（404）', crossEdit.status === 404);
-
-  // 15.1 开发者应用列表只看到自己的
   const dev2Apps = await req('GET', '/api/developer/apps', { token: dev2Token });
   check(
     '开发者应用列表隔离',
     dev2Apps.status === 200 && (dev2Apps.data?.data || []).every((a) => a.client_id !== clientId),
   );
-
-  // 16. 开发者 token 访问管理接口 → 401
   const crossAdmin = await req('GET', '/api/admin/clients', { token: devToken });
   check('开发者 token 访问管理接口被拒（401）', crossAdmin.status === 401);
 
-  // 17. 审计日志
+  // 9. 审计 / 概览 / 会话 / 老库
   const logs = await req('GET', '/api/admin/logs?size=5', { token: adminToken });
   check('审计日志接口', logs.status === 200 && Array.isArray(logs.data?.data));
   check('审计日志有记录', Number(logs.data?.total) > 0, `total=${logs.data?.total}`);
-  const logFilter = await req('GET', '/api/admin/logs?action=client.review', { token: adminToken });
-  check('审计日志按动作筛选', logFilter.status === 200);
+  const reviewLogs = await req('GET', '/api/admin/logs?action=developer.review', { token: adminToken });
+  check('开发者资格审核已记入审计', reviewLogs.status === 200 && Number(reviewLogs.data?.total) >= 2);
 
-  // 18. 概览统计
   const overview = await req('GET', '/api/admin/overview', { token: adminToken });
   check(
-    '概览统计接口',
+    '概览统计接口（含普通用户数）',
     overview.status === 200 &&
       overview.data?.data?.clients !== undefined &&
-      overview.data?.data?.developers !== undefined,
-    `clients=${overview.data?.data?.clients?.total} developers=${overview.data?.data?.developers?.total}`,
+      overview.data?.data?.developers !== undefined &&
+      overview.data?.data?.developers?.normal !== undefined,
+    `clients=${overview.data?.data?.clients?.total} users=${overview.data?.data?.developers?.total}`,
   );
   check('概览含最近操作', Array.isArray(overview.data?.data?.recent_logs));
 
-  // 19. 会话管理
   const sessions = await req('GET', '/api/admin/sessions', { token: adminToken });
   check('会话列表接口', sessions.status === 200 && Array.isArray(sessions.data?.data));
   const revokeMissing = await req('DELETE', '/api/admin/sessions/not-exist-uid', { token: adminToken });
   check('吊销不存在会话返回 400', revokeMissing.status === 400);
 
-  // 20. 老库用户查询
   const legacyList = await req('GET', '/api/admin/legacy-users?size=3', { token: adminToken });
   check(
     '老库用户查询接口',
@@ -296,7 +345,6 @@ async function main() {
   });
   check('老库关键词查询（空结果）', legacySearch.status === 200 && Number(legacySearch.data?.total) === 0);
 
-  // 21. 管理端刷新续期
   const refreshRes = await fetch(`${BASE}/api/admin/auth/refresh`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

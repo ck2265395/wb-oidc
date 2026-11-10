@@ -27,7 +27,7 @@
           <template v-if="!developer">
             <el-button text @click="$router.push('/developer/login?tab=login')">登录</el-button>
             <el-button type="primary" round @click="$router.push('/developer/login?tab=register')">
-              注册开发者
+              免费注册
             </el-button>
           </template>
           <template v-else>

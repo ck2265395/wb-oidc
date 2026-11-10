@@ -70,11 +70,11 @@
       <div class="cta-inner">
         <div class="cta-copy">
           <h3>准备好接入 Moondrop 了吗？</h3>
-          <p>注册开发者账号，提交应用申请，审核通过即可开始集成。</p>
+          <p>注册账号即可登录，申请开发者资格并通过审核后，就能创建接入应用。</p>
         </div>
         <div class="cta-action">
           <el-button size="large" class="cta-on-dark" @click="goStart">
-            {{ developer ? '管理我的应用' : '注册开发者账号' }}
+            {{ developer ? '管理我的应用' : '免费注册账号' }}
           </el-button>
           <el-button size="large" class="cta-on-dark-ghost" @click="$router.push('/docs')">
             阅读文档
@@ -106,10 +106,10 @@ const features = [
 ];
 
 const steps = [
-  { title: '注册开发者', desc: '邮箱注册，填写公司与联系方式，等待审核通过。' },
-  { title: '提交应用', desc: '填写应用名称、回调地址与所需 scope，提交审核。' },
-  { title: '集成登录', desc: '按文档发起 /auth 授权跳转，用 code 换取 token。' },
-  { title: '上线运营', desc: '审核通过即可上线，回调与权限变更需重新审核。' },
+  { title: '注册账号', desc: '邮箱注册后即可登录开发者中心，无需等待审核。' },
+  { title: '申请开发者资格', desc: '补齐公司与联系方式，由管理员审核资料。' },
+  { title: '创建应用', desc: '资格通过后提交应用，填写回调地址与所需 scope。' },
+  { title: '集成上线', desc: '应用审核通过即可发起 /auth 授权，用 code 换取 token。' },
 ];
 </script>
 

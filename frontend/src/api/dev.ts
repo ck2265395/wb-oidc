@@ -11,7 +11,12 @@ export interface DeveloperInfo {
   email: string;
   company: string;
   contact: string;
-  status: 'pending' | 'active' | 'suspended';
+  /** 账号能否登录 */
+  status: 'active' | 'suspended';
+  /** 开发者资格：能否创建应用 */
+  developer_status: 'none' | 'pending' | 'approved' | 'rejected';
+  developer_reject_reason: string;
+  developer_applied_at: string | null;
   reject_reason: string;
   last_login_at: string | null;
   created_at: string;
@@ -122,11 +127,22 @@ export async function devLogin(email: string, password: string): Promise<Develop
 export async function devRegister(dto: {
   email: string;
   password: string;
-  company?: string;
-  contact?: string;
 }): Promise<string> {
   const { data } = await devApi.post<{ message: string }>('/api/developer/auth/register', dto);
   return data.message;
+}
+
+/** 申请成为开发者：补齐资料后进入待审核 */
+export async function devApplyDeveloper(
+  company: string,
+  contact: string,
+): Promise<DeveloperInfo> {
+  const { data } = await devApi.post<{ data: DeveloperInfo; message: string }>(
+    '/api/developer/apply',
+    { company, contact },
+  );
+  currentDeveloper = data.data;
+  return data.data;
 }
 
 export async function devLogout(): Promise<void> {

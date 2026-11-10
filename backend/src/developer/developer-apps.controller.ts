@@ -12,6 +12,7 @@ import {
 import { Request } from 'express';
 import { ClientsService, CreateClientDto, ClientRow } from '../clients/clients.service';
 import { DeveloperGuard, currentDeveloper } from './developer.guard';
+import { DeveloperAuthService } from './developer-auth.service';
 
 /** 开发者自己的应用（返回前剥离 secret 与内部字段） */
 function safeClient(row: ClientRow) {
@@ -28,7 +29,10 @@ function safeClient(row: ClientRow) {
 @Controller('developer/apps')
 @UseGuards(DeveloperGuard)
 export class DeveloperAppsController {
-  constructor(private readonly clients: ClientsService) {}
+  constructor(
+    private readonly clients: ClientsService,
+    private readonly devAuth: DeveloperAuthService,
+  ) {}
 
   @Get()
   async listMine(@Req() req: Request) {
@@ -40,6 +44,8 @@ export class DeveloperAppsController {
   @Post()
   async create(@Req() req: Request, @Body() dto: CreateClientDto) {
     const dev = currentDeveloper(req);
+    // 实时查库校验开发者资格，不信任 JWT 里签发的旧状态
+    await this.devAuth.assertDeveloperApproved(dev.id);
     const { client, secret } = await this.clients.create(dto, {
       developerId: dev.id,
       status: 'pending',
@@ -54,6 +60,7 @@ export class DeveloperAppsController {
     @Body() dto: { client_name?: string; redirect_uris?: string[]; scope?: string },
   ) {
     const dev = currentDeveloper(req);
+    await this.devAuth.assertDeveloperApproved(dev.id);
     const row = await this.clients.get(clientId);
     if (!row) throw new BadRequestException(`应用 ${clientId} 不存在`);
     this.clients.assertOwned(row, dev.id);

@@ -18,7 +18,7 @@
             <span>📦 应用管理</span>
           </el-menu-item>
           <el-menu-item index="/console/developers">
-            <span>👥 开发者审核</span>
+            <span>👥 用户与开发者</span>
           </el-menu-item>
           <el-menu-item index="/console/admins">
             <span>👤 管理员</span>

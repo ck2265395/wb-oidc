@@ -117,20 +117,26 @@ CREATE TABLE IF NOT EXISTS oidc_admin_log (
 );
 CREATE INDEX IF NOT EXISTS idx_admin_log_created ON oidc_admin_log (created_at DESC);
 
--- 开发者账号（门户自助注册，注册后 pending，管理员审核通过才可提交应用）
+-- 门户账号：注册即可登录（status=active）；开发者资格单独走审核（developer_status）
+-- status:           active | suspended   —— 能否登录
+-- developer_status: none | pending | approved | rejected —— 能否创建应用
 CREATE TABLE IF NOT EXISTS oidc_developer (
   id BIGSERIAL PRIMARY KEY,
   email VARCHAR(128) UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
   company VARCHAR(128) NOT NULL DEFAULT '',
   contact VARCHAR(64) NOT NULL DEFAULT '',
-  status VARCHAR(16) NOT NULL DEFAULT 'pending',  -- pending | active | suspended
+  status VARCHAR(16) NOT NULL DEFAULT 'active',
+  developer_status VARCHAR(16) NOT NULL DEFAULT 'none',
+  developer_reject_reason TEXT NOT NULL DEFAULT '',
+  developer_applied_at TIMESTAMPTZ,
   reject_reason TEXT NOT NULL DEFAULT '',
   last_login_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_developer_status ON oidc_developer (status);
+-- 注意：developer_status 的索引放在下方 ALTER 之后，老表加列前不能引用该列
 
 -- 开发者刷新令牌（与管理员会话同构）
 CREATE TABLE IF NOT EXISTS oidc_developer_session (
@@ -152,6 +158,20 @@ ALTER TABLE oidc_clients ADD COLUMN IF NOT EXISTS status VARCHAR(16) NOT NULL DE
 ALTER TABLE oidc_clients ADD COLUMN IF NOT EXISTS reject_reason TEXT NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS idx_clients_developer ON oidc_clients (developer_id);
 CREATE INDEX IF NOT EXISTS idx_clients_status ON oidc_clients (status);
+
+-- v2 幂等迁移：老库里 status 曾兼任「开发者审核状态」，现拆成账号状态 + 开发者资格。
+-- ADD COLUMN 的 DEFAULT 'approved' 只用于老库回填（保住已审核通过的开发者）；
+-- 新库走上面 CREATE TABLE 的 DEFAULT 'none'，普通用户不会被误升级。
+ALTER TABLE oidc_developer ADD COLUMN IF NOT EXISTS developer_status VARCHAR(16) NOT NULL DEFAULT 'approved';
+ALTER TABLE oidc_developer ADD COLUMN IF NOT EXISTS developer_reject_reason TEXT NOT NULL DEFAULT '';
+ALTER TABLE oidc_developer ADD COLUMN IF NOT EXISTS developer_applied_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_developer_dev_status ON oidc_developer (developer_status);
+-- 老库 pending 的注册申请 → 账号可用 + 开发者资格待审（新流程不再产生 status='pending'，可反复执行）
+UPDATE oidc_developer
+   SET status = 'active',
+       developer_status = 'pending',
+       developer_applied_at = COALESCE(developer_applied_at, created_at)
+ WHERE status = 'pending';
 `;
 
 async function ensureSchema(pool: Pool): Promise<void> {
