@@ -28,9 +28,9 @@
         <div class="doc-block" id="guide">
           <h3 class="doc-title">🚀 快速接入指南</h3>
           <el-steps :active="5" align-center class="steps">
-            <el-step title="注册账号" description="注册后即可登录" />
-            <el-step title="申请开发者资格" description="补齐资料，管理员审核" />
-            <el-step title="提交应用申请" description="开发者门户 → 我的应用" />
+            <el-step title="注册登录" description="注册后即可进入工作台" />
+            <el-step title="新建应用" description="补充资料，资格审核" />
+            <el-step title="提交应用申请" description="工作台 → 新建应用" />
             <el-step title="应用审核" description="通过后应用生效" />
             <el-step title="发起授权" description="/auth → code → token" />
           </el-steps>

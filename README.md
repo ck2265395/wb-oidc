@@ -33,7 +33,7 @@ wb-oidc/
 │       │   ├── InteractionView.vue      # 统一登录页 / consent 授权页
 │       │   ├── ConsoleView.vue          # 管理控制台布局
 │       │   ├── console/                 # 概览/应用/用户与开发者/管理员/审计/会话/老库用户
-│       │   ├── developer/               # 开发者门户（登录注册/我的应用/接入文档）
+│       │   ├── developer/               # 开发者门户（登录注册/工作台/接入文档）
 │       │   ├── LoginView.vue            # 管理员登录
 │       │   └── CallbackView.vue         # PKCE 回调演示（code → token → userinfo）
 │       └── api/
@@ -113,13 +113,13 @@ cd frontend && npm install && npm run build
 ### A. 开发者门户自助接入
 
 1. 打开 `/developer/login` → **注册（只需邮箱 + 密码）→ 立即可以登录**，此时是普通用户（`developer_status=none`），可浏览首页与接入文档
-2. 进入「我的应用」→ 提示「申请成为开发者」，填写**公司 / 团队 + 联系方式**（资料必须齐全）→ 提交后 `developer_status=pending`
-3. 管理员在控制台「用户与开发者」审核资格：通过 → `approved`；驳回（填理由）→ `rejected`，用户可改资料重新提交
-4. **资格 `approved` 后才能创建应用**：提交名称 / 回调 / scopes → 应用 `pending`，此时无法发起授权
-5. 管理员在「应用管理」审核通过 → 应用 `approved`，可正常走 OIDC
-6. 开发者修改**回调地址或 scope** → 自动回到 `pending` 重新审核（名称改动不触发）
+2. 登录后进入 `/apps` **工作台**，两个模块常显：**用户资料与状态**（账号状态、开发者资格、资料字段、审核进度）+ **我的应用列表**（普通用户为空列表）
+3. 点击「新建应用」时才触发资格检测：非开发者弹出**补充开发者信息**表单，填写**公司 / 团队 + 联系方式** → 提交后 `developer_status=pending`；审核中提示进度，被驳回可改资料重提
+4. 管理员在控制台「用户与开发者」审核资格：通过 → `approved`；驳回（填理由）→ `rejected`
+5. **资格 `approved` 后点「新建应用」才会打开创建表单**：提交名称 / 回调 / scopes → 应用 `pending`，此时无法发起授权
+6. 管理员在「应用管理」审核通过 → 应用 `approved`，可正常走 OIDC；修改**回调地址或 scope** → 自动回到 `pending` 重新审核（名称改动不触发）
 
-> 账号状态（能否登录）与开发者资格（能否建应用）是两个独立字段；创建应用时服务端**实时查库**校验资格，不依赖 JWT 里签发的旧状态。
+> 账号状态（能否登录）与开发者资格（能否建应用）是两个独立字段；创建应用时服务端**实时查库**校验资格，不依赖 JWT 里签发的旧状态。应用列表接口不校验资格，普通用户也能正常看到空列表。
 
 ### B. 管理端直接注册
 
@@ -215,8 +215,8 @@ npm run smoke:all -- http://127.0.0.1:3200      # 全链路冒烟：开发者门
 | POST | `/api/developer/auth/register` | 注册 `{ email, password }` → 立即 `active` 可登录，资格 `none` |
 | POST | `/api/developer/auth/login` | 登录（仅 `active` 账号，独立 cookie） |
 | GET | `/api/developer/auth/me` | 当前用户（含账号状态 / 开发者资格 / 驳回原因 / 申请时间） |
-| POST | `/api/developer/apply` | 申请开发者资格 `{ company, contact }` → `pending`（仅 `none` / `rejected` 可提交） |
-| GET | `/api/developer/apps` | 我的应用列表 |
+| POST | `/api/developer/apply` | 补充开发者资料 `{ company, contact }` → `pending`（仅 `none` / `rejected` 可提交） |
+| GET | `/api/developer/apps` | 我的应用列表（不校验资格，普通用户返回空列表） |
 | POST | `/api/developer/apps` | 提交应用申请 → `pending`（**需资格 `approved`**，否则 403） |
 | PATCH | `/api/developer/apps/:clientId` | 编辑（改回调/scope 自动回 `pending`） |
 

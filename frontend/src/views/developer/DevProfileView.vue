@@ -51,6 +51,9 @@
         <el-descriptions-item label="最近登录">{{ info?.last_login_at ? fmtTime(info.last_login_at) : '—' }}</el-descriptions-item>
       </el-descriptions>
 
+      <p v-if="info && ['none', 'rejected'].includes(info.developer_status)" class="profile-hint">
+        需要创建应用？回到工作台点击「新建应用」，即可补充资料并提交审核。
+      </p>
       <div class="profile-actions">
         <el-button type="primary" @click="$router.push('/apps')">{{ actionText }}</el-button>
         <el-button @click="$router.push('/docs')">查看接入文档</el-button>
@@ -97,13 +100,13 @@ const qualificationTag = computed(
 const actionText = computed(() => {
   switch (info.value?.developer_status) {
     case 'approved':
-      return '前往我的应用';
+      return '前往工作台创建应用';
     case 'pending':
-      return '查看审核进度';
+      return '返回工作台查看进度';
     case 'rejected':
-      return '重新申请开发者资格';
+      return '返回工作台重新申请';
     default:
-      return '申请成为开发者';
+      return '返回工作台';
   }
 });
 
@@ -165,8 +168,13 @@ function fmtTime(s?: string | null): string {
 .mt24 {
   margin-top: 24px;
 }
+.profile-hint {
+  margin: 24px 0 0;
+  font-size: 13px;
+  color: #6b7280;
+}
 .profile-actions {
-  margin-top: 24px;
+  margin-top: 16px;
   display: flex;
   gap: 12px;
 }

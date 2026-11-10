@@ -5,7 +5,7 @@ import { getDevAccessToken, refreshDevSession } from '../api/dev';
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    // 开发者门户（根路径直达：首页/文档公开，应用管理/资料需登录）
+    // 开发者门户（根路径直达：首页/文档公开，工作台/资料需登录）
     {
       path: '/',
       component: () => import('../views/developer/DevLayout.vue'),

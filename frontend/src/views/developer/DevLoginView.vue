@@ -9,7 +9,7 @@
         <ul class="brand-points">
           <li>✓ 标准 OIDC 协议，主流客户端开箱即用</li>
           <li>✓ 注册即可登录，无需等待审核</li>
-          <li>✓ 创建应用时再申请开发者资格</li>
+          <li>✓ 新建应用时再补充资料</li>
           <li>✓ 回调白名单 + 应用审核双重把关</li>
         </ul>
         <div class="brand-deco">
@@ -21,8 +21,12 @@
 
       <!-- 右侧表单区 -->
       <div class="form-side">
+        <div class="form-heading">
+          <h1 class="form-title">用户账号</h1>
+          <p class="form-subtitle">一个账号，管理你的资料与接入应用</p>
+        </div>
         <el-tabs v-model="tab" stretch>
-          <el-tab-pane label="开发者登录" name="login">
+          <el-tab-pane label="登录" name="login">
             <el-form ref="loginFormRef" :model="loginForm" :rules="loginRules" label-position="top" size="large">
               <el-form-item label="邮箱" prop="email">
                 <el-input v-model="loginForm.email" placeholder="you@company.com" @keyup.enter="submitLogin" />
@@ -31,12 +35,12 @@
                 <el-input v-model="loginForm.password" type="password" show-password placeholder="密码" @keyup.enter="submitLogin" />
               </el-form-item>
               <el-button type="primary" class="block" size="large" :loading="submitting" @click="submitLogin">
-                登录开发者中心
+                登录
               </el-button>
             </el-form>
           </el-tab-pane>
 
-          <el-tab-pane label="注册账号" name="register">
+          <el-tab-pane label="注册" name="register">
             <el-form ref="regFormRef" :model="regForm" :rules="regRules" label-position="top" size="large">
               <el-form-item label="邮箱" prop="email">
                 <el-input v-model="regForm.email" placeholder="you@company.com" />
@@ -45,13 +49,13 @@
                 <el-input v-model="regForm.password" type="password" show-password placeholder="至少 10 位，含字母和数字" />
               </el-form-item>
               <el-button type="primary" class="block" size="large" :loading="submitting" @click="submitRegister">
-                注册账号
+                注册
               </el-button>
               <el-alert
                 class="reg-tip"
                 type="info"
                 :closable="false"
-                title="注册后即可登录。如需创建应用，登录后再补齐资料申请开发者资格。"
+                title="只需邮箱和密码，注册后即可登录；创建应用时再补充资料。"
               />
             </el-form>
           </el-tab-pane>
@@ -157,7 +161,7 @@ async function submitRegister() {
   }
 }
 
-// 已登录直接进应用管理
+// 已登录直接进工作台
 onMounted(() => {
   if (getCurrentDeveloper()) router.replace('/apps');
 });
@@ -245,6 +249,20 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   justify-content: center;
+}
+.form-heading {
+  margin-bottom: 18px;
+}
+.form-title {
+  margin: 0 0 6px;
+  font-size: 22px;
+  font-weight: 800;
+  color: #0b1220;
+}
+.form-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: #6b7280;
 }
 .block {
   width: 100%;

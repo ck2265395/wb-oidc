@@ -19,7 +19,7 @@
             class="menu-item"
             :class="{ active: route.path === '/apps' }"
           >
-            我的应用
+            工作台
           </RouterLink>
         </nav>
 
@@ -39,8 +39,8 @@
               </div>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <el-dropdown-item command="apps">📦 我的应用</el-dropdown-item>
-                  <el-dropdown-item command="profile">👤 账号资料</el-dropdown-item>
+                  <el-dropdown-item command="apps">工作台</el-dropdown-item>
+                  <el-dropdown-item command="profile">账号资料</el-dropdown-item>
                   <el-dropdown-item divided command="logout">退出登录</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
@@ -64,7 +64,7 @@
         </div>
         <el-space :size="16">
           <RouterLink to="/docs" class="footer-link">接入文档</RouterLink>
-          <RouterLink to="/" class="footer-link">开发者首页</RouterLink>
+          <RouterLink to="/" class="footer-link">首页</RouterLink>
         </el-space>
       </div>
     </footer>

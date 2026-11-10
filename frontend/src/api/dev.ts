@@ -132,7 +132,7 @@ export async function devRegister(dto: {
   return data.message;
 }
 
-/** 申请成为开发者：补齐资料后进入待审核 */
+/** 补充开发者资料并提交审核：none / rejected 状态下可调用 */
 export async function devApplyDeveloper(
   company: string,
   contact: string,
