@@ -73,7 +73,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { ArrowDown } from '@element-plus/icons-vue';
-import { devFetchMe, devLogout, getCurrentDeveloper, DeveloperInfo } from '../../api/dev';
+import { devLogout, getCurrentDeveloper, refreshDevSession, DeveloperInfo } from '../../api/dev';
 
 const route = useRoute();
 const router = useRouter();
@@ -83,8 +83,11 @@ onMounted(refreshUser);
 watch(() => route.path, refreshUser);
 
 async function refreshUser() {
-  // 登录态只影响导航栏展示，静默获取即可
-  developer.value = (await devFetchMe()) || getCurrentDeveloper();
+  // 公开页（首页/文档）绝不能因为 401 被弹去登录页：
+  // 用静默 refresh 判断登录态（失败只返回 false，不触发拦截器重定向）
+  const hasToken = !!getDevAccessToken();
+  if (!hasToken) await refreshDevSession();
+  developer.value = getCurrentDeveloper();
 }
 
 const avatarText = computed(() => (developer.value?.email || '?').slice(0, 1).toUpperCase());

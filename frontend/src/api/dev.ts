@@ -97,6 +97,9 @@ devApi.interceptors.response.use(
       config._retried = true;
       const ok = await refreshDevSession();
       if (ok) return devApi.request(config);
+      // 刷新失败：只有需要登录的门户页才回登录页，公开页（首页/文档）保持原位
+      const protectedPage = /^\/(apps|profile)(\/|$)/.test(window.location.pathname);
+      if (!protectedPage) return Promise.reject(error);
       const redirect = encodeURIComponent(window.location.pathname + window.location.search);
       if (!window.location.pathname.startsWith('/developer/login')) {
         window.location.href = `/developer/login?redirect=${redirect}`;
