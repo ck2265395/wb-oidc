@@ -39,7 +39,7 @@
         <el-row :gutter="20" class="feature-row">
           <el-col :span="6" v-for="f in features" :key="f.title">
             <div class="feature-card">
-              <div class="feature-icon">{{ f.icon }}</div>
+              <div class="feature-icon"><DevFeatureIcon :name="f.icon" /></div>
               <div class="feature-title">{{ f.title }}</div>
               <div class="feature-desc">{{ f.desc }}</div>
             </div>
@@ -89,6 +89,7 @@
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { getCurrentDeveloper } from '../../api/dev';
+import DevFeatureIcon from './DevFeatureIcon.vue';
 
 const router = useRouter();
 const developer = computed(() => getCurrentDeveloper());
@@ -98,10 +99,10 @@ function goStart() {
 }
 
 const features = [
-  { icon: '🛡️', title: '标准协议', desc: '完整实现 OpenID Connect 1.0，主流 OIDC 客户端库开箱即用，杜绝私有协议锁定。' },
-  { icon: '👥', title: '存量用户直连', desc: '用户数据来自平台既有账号体系，你的用户无需重新注册，登录转化零损耗。' },
-  { icon: '🔍', title: '审核机制', desc: '开发者实名注册 + 应用审核双重把关，回调地址白名单严格校验，杜绝开放重定向。' },
-  { icon: '🔑', title: '安全默认', desc: '默认授权码 + PKCE，RS256 签名，refresh token 轮换，密钥可随时吊销重置。' },
+  { icon: 'protocol', title: '标准协议', desc: '完整实现 OpenID Connect 1.0，主流 OIDC 客户端库开箱即用，杜绝私有协议锁定。' },
+  { icon: 'users', title: '存量用户直连', desc: '用户数据来自平台既有账号体系，你的用户无需重新注册，登录转化零损耗。' },
+  { icon: 'review', title: '审核机制', desc: '开发者实名注册 + 应用审核双重把关，回调地址白名单严格校验，杜绝开放重定向。' },
+  { icon: 'security', title: '安全默认', desc: '默认授权码 + PKCE，RS256 签名，refresh token 轮换，密钥可随时吊销重置。' },
 ];
 
 const steps = [
@@ -269,8 +270,21 @@ const steps = [
   border-color: #bcd3f5;
 }
 .feature-icon {
-  font-size: 26px;
-  margin-bottom: 14px;
+  width: 48px;
+  height: 48px;
+  padding: 11px;
+  box-sizing: border-box;
+  margin-bottom: 20px;
+  border: 1px solid #e3eaf3;
+  border-radius: 10px;
+  background: #f7faff;
+  color: #0a3d91;
+  transition: border-color 0.24s, background 0.24s, color 0.24s;
+}
+.feature-card:hover .feature-icon {
+  border-color: #bcd3f5;
+  background: #eaf2ff;
+  color: #0b57d0;
 }
 .feature-title,
 .step-title {
