@@ -56,7 +56,7 @@
     >
       <template #default>
         <span>{{ guardText }}</span>
-        <el-button link type="primary" class="guard-link" @click="$router.push('/profile/edit')">
+        <el-button link type="primary" class="guard-link" @click="$router.push(`/profile/edit?redirect=${encodeURIComponent(route.fullPath)}`)">
           前往完善开发者资料 →
         </el-button>
       </template>

@@ -1,8 +1,8 @@
 <template>
   <div class="profile-edit-page">
     <div class="page-head">
-      <el-button link :icon="ArrowLeft" class="back-btn" @click="$router.push('/profile')">
-        返回账号资料
+      <el-button link :icon="ArrowLeft" class="back-btn" @click="router.push(backTarget)">
+        返回{{ backLabel }}
       </el-button>
       <h2 class="page-title">编辑开发者资料</h2>
       <p class="page-desc">公司 / 团队与联系方式将展示给平台管理员，用于开发者资格审核与应用归属核对。</p>
@@ -55,7 +55,7 @@
       <el-alert type="info" :closable="false" :title="hintText" />
 
       <div class="form-actions">
-        <el-button @click="$router.push('/profile')">取消</el-button>
+        <el-button @click="router.push(backTarget)">取消</el-button>
         <el-button v-if="canApply" :loading="saving" @click="save(false)">仅保存资料</el-button>
         <el-button type="primary" :loading="saving" :disabled="suspended" @click="save(true)">
           {{ primaryText }}
@@ -67,7 +67,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import { ArrowLeft } from '@element-plus/icons-vue';
@@ -80,12 +80,33 @@ import {
   getCurrentDeveloper,
 } from '../../api/dev';
 
+const route = useRoute();
 const router = useRouter();
 const info = ref<DeveloperInfo | null>(getCurrentDeveloper());
 const formRef = ref<FormInstance>();
 const form = ref({ company: '', contact: '', developer_type: 'personal' as 'personal' | 'enterprise' });
 const saving = ref(false);
 const loading = ref(true);
+
+/**
+ * 保存 / 取消 / 返回的去向：从哪进来就回哪去。
+ * 来源页通过 ?redirect= 传入，只接受站内绝对路径，避免被拿来跳外链。
+ */
+const backTarget = computed(() => {
+  const raw = route.query.redirect;
+  const val = Array.isArray(raw) ? raw[0] : raw;
+  if (typeof val === 'string' && val.startsWith('/') && !val.startsWith('//')) {
+    // 不允许跳回资料编辑页自身，避免出现死循环
+    if (!val.startsWith('/profile/edit')) return val;
+  }
+  return '/profile';
+});
+const backLabel = computed(() => {
+  const t = backTarget.value;
+  if (t.startsWith('/apps')) return '工作台';
+  if (t.startsWith('/profile')) return '账号资料';
+  return '上一页';
+});
 
 const rules: FormRules = {
   company: [
@@ -150,7 +171,7 @@ async function save(submit: boolean) {
         : await devUpdateProfile(form.value.company.trim(), form.value.contact.trim(), form.value.developer_type);
     info.value = updated;
     ElMessage.success(submit && canApply.value ? '资料已提交，等待管理员审核' : '资料已保存');
-    router.push('/profile');
+    router.push(backTarget.value);
   } catch (e) {
     ElMessage.error(extractDevError(e, '保存失败，请稍后重试'));
   } finally {

@@ -21,7 +21,7 @@
           </div>
         </div>
         <div class="panel-actions">
-          <el-button :icon="EditPen" @click="$router.push('/profile/edit')">编辑开发者资料</el-button>
+          <el-button :icon="EditPen" @click="$router.push('/profile/edit?redirect=/apps')">编辑开发者资料</el-button>
           <el-button link type="primary" @click="$router.push('/profile')">查看完整资料 →</el-button>
         </div>
       </div>
@@ -306,8 +306,8 @@ async function handleNewApp() {
     return;
   }
   if (d.developer_status !== 'approved') {
-    // 未认证：去资料编辑页补充并提交审核
-    router.push('/profile/edit');
+    // 未认证：去资料编辑页补充并提交审核，完成后回工作台
+    router.push('/profile/edit?redirect=/apps');
     return;
   }
   router.push('/apps/new');
