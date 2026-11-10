@@ -13,6 +13,7 @@
     "smoke:password": "node scripts/smoke-change-password.mjs",
     "smoke:all": "node scripts/smoke-all.mjs",
     "smoke:profile": "node scripts/smoke-profile.mjs",
+    "smoke:app-meta": "node scripts/smoke-app-meta.mjs",
     "verify-legacy": "node scripts/verify-legacy.mjs"
   },
   "dependencies": {

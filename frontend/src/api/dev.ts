@@ -17,6 +17,7 @@ export interface DeveloperInfo {
   developer_status: 'none' | 'pending' | 'approved' | 'rejected';
   developer_reject_reason: string;
   developer_applied_at: string | null;
+  developer_type: 'personal' | 'enterprise' | null;
   reject_reason: string;
   last_login_at: string | null;
   created_at: string;
@@ -32,6 +33,12 @@ export interface DevAppRow {
   enabled: boolean;
   status: 'pending' | 'approved' | 'rejected' | 'suspended';
   reject_reason: string;
+  category: 'web_app' | 'mobile_app' | 'mini_program';
+  logo: string;
+  description: string;
+  website: string;
+  icp_number: string;
+  tags: string[];
   created_at: string;
 }
 
@@ -136,23 +143,25 @@ export async function devRegister(dto: {
 export async function devApplyDeveloper(
   company: string,
   contact: string,
+  developerType?: 'personal' | 'enterprise',
 ): Promise<DeveloperInfo> {
   const { data } = await devApi.post<{ data: DeveloperInfo; message: string }>(
     '/api/developer/apply',
-    { company, contact },
+    { company, contact, developer_type: developerType || 'personal' },
   );
   currentDeveloper = data.data;
   return data.data;
 }
 
-/** 编辑开发者资料：只保存公司/联系方式，不改变开发者资格状态 */
+/** 编辑开发者资料：只保存公司/联系方式与开发者类型，不改变开发者资格状态 */
 export async function devUpdateProfile(
   company: string,
   contact: string,
+  developerType?: 'personal' | 'enterprise',
 ): Promise<DeveloperInfo> {
   const { data } = await devApi.patch<{ data: DeveloperInfo; message: string }>(
     '/api/developer/profile',
-    { company, contact },
+    { company, contact, developer_type: developerType || 'personal' },
   );
   currentDeveloper = data.data;
   return data.data;

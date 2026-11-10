@@ -122,6 +122,8 @@ cd frontend && npm install && npm run build
 
 > 账号状态（能否登录）与开发者资格（能否建应用）是两个独立字段；创建应用时服务端**实时查库**校验资格，不依赖 JWT 里签发的旧状态。应用列表接口不校验资格，普通用户也能正常看到空列表。
 
+> **应用类目与分组**：创建应用需选择类目 `category`（`web_app` 网站应用 / `mobile_app` 移动应用 / `mini_program` 小程序），类目同时决定安全形态（网站应用发 `client_secret`，移动/小程序走 PKCE）。列表页可按类目筛选；另提供自由 `tags`（最多 20 个）做任意归类，暂不做独立分组管理 UI（应用量上来再升级独立分组表）。**个人 / 企业开发者**：`developer_type` 区分 `personal` / `enterprise`；**企业开发者创建或编辑应用时必须保留 ICP 备案号 `icp_number`**（参照 QQ 开放平台中国合规要求），个人开发者与管理端创建不强制。应用元数据字段：`logo`（≤100×100 图标 data URL）、`description`（≤200 字自动截断）、`website`（官网域名，需 http(s)://）。
+
 ### B. 管理端直接注册
 
 登录控制台（`/console`）或调用 `POST /api/admin/clients`（Bearer token），拿到 `client_id`（SPA/PKCE 客户端可不发 secret），应用直接 `approved`。
@@ -176,6 +178,7 @@ npm run smoke:admin -- http://127.0.0.1:3000    # 鉴权链路冒烟（9 项断�
 npm run smoke:password -- http://127.0.0.1:3000 # 改密码链路冒烟（9 项断言，测完自动恢复原密码）
 npm run smoke:all -- http://127.0.0.1:3200      # 全链路冒烟：开发者门户 + 审核 + OIDC + 审计/会话/老库（46 项）
 npm run smoke:profile -- http://127.0.0.1:3200  # 资料编辑链路冒烟：仅保存 / 审核中改 / 已认证改（14 项）
+npm run smoke:app-meta -- http://127.0.0.1:3200  # 应用元数据 / 个人企业开发者冒烟（17 项：企业 ICP 强制、类目派生、简介截断、官网校验）
 ```
 
 管理员接口（需 `super_admin`）：
@@ -194,10 +197,10 @@ npm run smoke:profile -- http://127.0.0.1:3200  # 资料编辑链路冒烟：仅
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/api/admin/clients` | 列表（含申请人邮箱与审核状态） |
-| POST | `/api/admin/clients` | 注册应用 `{ client_name, redirect_uris, application_type, scope }` |
+| POST | `/api/admin/clients` | 注册应用 `{ client_name, redirect_uris, application_type, category, logo, description, website, icp_number, tags, scope }` |
 | GET | `/api/admin/clients/:clientId` | 详情 |
 | PATCH | `/api/admin/clients/:clientId/enabled/:enabled` | 启停 |
-| PATCH | `/api/admin/clients/:clientId` | 编辑名称/回调/scope |
+| PATCH | `/api/admin/clients/:clientId` | 编辑名称/回调/scope/类目/图标/简介/官网/ICP/标签 |
 | POST | `/api/admin/clients/:clientId/review` | 审核 `{ action: approve\|reject\|suspend, reason }` |
 | POST | `/api/admin/clients/:clientId/rotate-secret` | 轮换 secret |
 | DELETE | `/api/admin/clients/:clientId` | 删除 |
@@ -217,11 +220,11 @@ npm run smoke:profile -- http://127.0.0.1:3200  # 资料编辑链路冒烟：仅
 | POST | `/api/developer/auth/register` | 注册 `{ email, password }` → 立即 `active` 可登录，资格 `none` |
 | POST | `/api/developer/auth/login` | 登录（仅 `active` 账号，独立 cookie） |
 | GET | `/api/developer/auth/me` | 当前用户（含账号状态 / 开发者资格 / 驳回原因 / 申请时间） |
-| PATCH | `/api/developer/profile` | 编辑开发者资料 `{ company, contact }`，**不改变资格状态**（任何 `active` 用户可用） |
-| POST | `/api/developer/apply` | 补充开发者资料并提交审核 `{ company, contact }` → `pending`（仅 `none` / `rejected` 可提交） |
+| PATCH | `/api/developer/profile` | 编辑开发者资料 `{ company, contact, developer_type }`，**不改变资格状态**（任何 `active` 用户可用） |
+| POST | `/api/developer/apply` | 补充开发者资料并提交审核 `{ company, contact, developer_type }` → `pending`（仅 `none` / `rejected` 可提交） |
 | GET | `/api/developer/apps` | 我的应用列表（不校验资格，普通用户返回空列表） |
-| POST | `/api/developer/apps` | 提交应用申请 → `pending`（**需资格 `approved`**，否则 403） |
-| PATCH | `/api/developer/apps/:clientId` | 编辑（改回调/scope 自动回 `pending`） |
+| POST | `/api/developer/apps` | 提交应用申请 `{ client_name, redirect_uris, category, logo, description, website, icp_number, tags }` → `pending`（**需资格 `approved`**，否则 403；**企业开发者必填 `icp_number`**） |
+| PATCH | `/api/developer/apps/:clientId` | 编辑（可改类目/图标/简介/官网/ICP/标签；改回调/scope 自动回 `pending`；**企业开发者清空 ICP 被拒**） |
 
 全链路冒烟（`smoke:all` 46 项 + `smoke:profile` 14 项，自带临时超管 / 临时用户并在结束后清理数据）：
 

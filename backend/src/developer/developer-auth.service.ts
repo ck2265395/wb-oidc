@@ -125,6 +125,7 @@ export class DeveloperAuthService {
         email: string;
         status: DeveloperRow['status'];
         developer_status?: DeveloperRow['developer_status'];
+        developer_type?: 'personal' | 'enterprise';
         typ?: string;
       };
       if (payload.typ !== 'developer_access') throw new Error('wrong token type');
@@ -134,6 +135,7 @@ export class DeveloperAuthService {
         status: payload.status,
         // 兼容升级前签发的旧 token
         developer_status: payload.developer_status || 'none',
+        developer_type: payload.developer_type,
       };
     } catch {
       throw new UnauthorizedException('登录已失效，请重新登录');
@@ -151,7 +153,12 @@ export class DeveloperAuthService {
    * 申请成为开发者：补齐资料后进入待审核。
    * 仅普通用户（none）或被驳回（rejected）可提交；pending 不可重复提交，approved 已无需申请。
    */
-  async applyDeveloper(id: number, company: string, contact: string): Promise<DeveloperRow> {
+  async applyDeveloper(
+    id: number,
+    company: string,
+    contact: string,
+    developerType?: 'personal' | 'enterprise',
+  ): Promise<DeveloperRow> {
     const org = (company || '').trim();
     const phone = (contact || '').trim();
     if (org.length < 2) throw new BadRequestException('请填写公司 / 团队名称（至少 2 个字符）');
@@ -159,17 +166,18 @@ export class DeveloperAuthService {
     if (org.length > 128 || phone.length > 64) {
       throw new BadRequestException('资料长度超出限制');
     }
+    const devType = developerType === 'enterprise' ? 'enterprise' : 'personal';
     const pool = getPool();
     const { rows } = await pool.query<DeveloperRow>(
       `UPDATE oidc_developer
-          SET company = $2, contact = $3,
+          SET company = $2, contact = $3, developer_type = $4,
               developer_status = 'pending', developer_reject_reason = '',
               developer_applied_at = NOW(), updated_at = NOW()
         WHERE id = $1
           AND status = 'active'
           AND developer_status IN ('none','rejected')
         RETURNING *`,
-      [id, org, phone],
+      [id, org, phone, devType],
     );
     if (!rows.length) {
       const current = await this.me(id);
@@ -189,7 +197,12 @@ export class DeveloperAuthService {
    * 任何正常登录的用户都可以维护自己的资料；审核中 / 已认证用户改资料
    * 不会因此被重新拉回审核（资格审核只由 applyDeveloper 或管理员触发）。
    */
-  async updateProfile(id: number, company: string, contact: string): Promise<DeveloperRow> {
+  async updateProfile(
+    id: number,
+    company: string,
+    contact: string,
+    developerType?: 'personal' | 'enterprise',
+  ): Promise<DeveloperRow> {
     const org = (company || '').trim();
     const phone = (contact || '').trim();
     if (org.length < 2) throw new BadRequestException('请填写公司 / 团队名称（至少 2 个字符）');
@@ -197,13 +210,14 @@ export class DeveloperAuthService {
     if (org.length > 128 || phone.length > 64) {
       throw new BadRequestException('资料长度超出限制');
     }
+    const devType = developerType === 'enterprise' ? 'enterprise' : 'personal';
     const { rows } = await getPool().query<DeveloperRow>(
       `UPDATE oidc_developer
-          SET company = $2, contact = $3, updated_at = NOW()
+          SET company = $2, contact = $3, developer_type = $4, updated_at = NOW()
         WHERE id = $1
           AND status = 'active'
         RETURNING *`,
-      [id, org, phone],
+      [id, org, phone, devType],
     );
     if (!rows.length) throw new ForbiddenException('账号已被停用，无法修改资料');
     return rows[0];
@@ -249,6 +263,7 @@ export class DeveloperAuthService {
       email: row.email,
       status: row.status,
       developer_status: row.developer_status,
+      developer_type: row.developer_type ?? undefined,
     };
   }
 
@@ -259,6 +274,7 @@ export class DeveloperAuthService {
         email: principal.email,
         status: principal.status,
         developer_status: principal.developer_status,
+        developer_type: principal.developer_type,
         typ: 'developer_access',
       },
       this.cfg.jwtSecret,

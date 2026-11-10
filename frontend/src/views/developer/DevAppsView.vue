@@ -131,14 +131,23 @@
           :prefix-icon="Search"
           style="width: 280px"
         />
+        <el-radio-group v-model="categoryFilter" class="cat-filter">
+          <el-radio-button value="">全类目</el-radio-button>
+          <el-radio-button value="web_app">网站应用</el-radio-button>
+          <el-radio-button value="mobile_app">移动应用</el-radio-button>
+          <el-radio-button value="mini_program">小程序</el-radio-button>
+        </el-radio-group>
         <el-button text type="primary" @click="loadApps">刷新列表</el-button>
       </div>
 
       <el-table :data="filteredApps" v-loading="loading" class="apps-table">
-        <el-table-column prop="client_name" label="应用名称" min-width="150">
+        <el-table-column prop="client_name" label="应用" min-width="180">
           <template #default="{ row }">
             <div class="app-name">
-              <div class="app-avatar">{{ (row.client_name || '?').slice(0, 1) }}</div>
+              <div class="app-avatar">
+                <img v-if="row.logo" :src="row.logo" class="app-avatar-img" alt="" />
+                <span v-else>{{ (row.client_name || '?').slice(0, 1) }}</span>
+              </div>
               <div>
                 <div class="app-title">{{ row.client_name }}</div>
                 <div class="app-cid">{{ row.client_id }}</div>
@@ -146,16 +155,14 @@
             </div>
           </template>
         </el-table-column>
+        <el-table-column label="类目" width="110">
+          <template #default="{ row }">
+            <el-tag size="small" effect="plain" round>{{ categoryLabel(row.category) }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="回调地址" min-width="220">
           <template #default="{ row }">
             <div v-for="u in row.redirect_uris" :key="u" class="uri-line">{{ u }}</div>
-          </template>
-        </el-table-column>
-        <el-table-column label="类型" width="90">
-          <template #default="{ row }">
-            <el-tag size="small" effect="plain" round>
-              {{ row.application_type === 'spa' ? '公共' : '机密' }}
-            </el-tag>
           </template>
         </el-table-column>
         <el-table-column label="审核状态" width="110">
@@ -219,10 +226,37 @@
     </el-dialog>
 
     <!-- 新建应用 -->
-    <el-dialog v-model="createVisible" title="新建应用" width="520px">
+    <el-dialog v-model="createVisible" title="新建应用" width="560px">
       <el-form label-position="top">
         <el-form-item label="应用名称" required>
-          <el-input v-model="createForm.client_name" placeholder="例如：小鹅砍价小程序" />
+          <el-input v-model="createForm.client_name" placeholder="例如：小鹅砍价小程序" maxlength="64" />
+        </el-form-item>
+        <el-form-item label="应用图标（100×100）">
+          <div class="logo-upload" @click="openLogoPicker('create')">
+            <img v-if="createForm.logo" :src="createForm.logo" class="logo-preview" alt="应用图标" />
+            <el-icon v-else class="logo-plus"><Plus /></el-icon>
+            <span v-if="createForm.logo" class="logo-clear" @click.stop="createForm.logo = ''">移除</span>
+          </div>
+        </el-form-item>
+        <el-form-item label="应用类目" required>
+          <el-select v-model="createForm.category" placeholder="选择应用类目">
+            <el-option label="网站应用" value="web_app" />
+            <el-option label="移动应用" value="mobile_app" />
+            <el-option label="小程序" value="mini_program" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="应用简介">
+          <el-input
+            v-model="createForm.description"
+            type="textarea"
+            :rows="3"
+            maxlength="200"
+            show-word-limit
+            placeholder="一句话介绍这个应用（200 字以内）"
+          />
+        </el-form-item>
+        <el-form-item label="官网域名">
+          <el-input v-model="createForm.website" placeholder="https://www.example.com" />
         </el-form-item>
         <el-form-item label="回调地址（每行一个）" required>
           <el-input
@@ -232,11 +266,15 @@
             placeholder="https://app.example.com/auth/callback"
           />
         </el-form-item>
-        <el-form-item label="应用类型">
-          <el-radio-group v-model="createForm.application_type">
-            <el-radio value="web">机密应用（有后端，client_secret 走后端）</el-radio>
-            <el-radio value="spa">公共应用（SPA/小程序，强制 PKCE，无需 secret）</el-radio>
-          </el-radio-group>
+        <el-form-item v-if="isEnterprise" label="ICP 备案号" required>
+          <el-input v-model="createForm.icp_number" placeholder="京ICP备XXXXXXXX号" />
+          <div class="form-hint">企业开发者创建应用必须填写 ICP 备案号（提供方：{{ dev?.company || '—' }}）。</div>
+        </el-form-item>
+        <el-form-item v-else label="ICP 备案号">
+          <el-input v-model="createForm.icp_number" placeholder="选填，企业开发者必填" />
+        </el-form-item>
+        <el-form-item label="标签">
+          <el-input v-model="createForm.tags_text" placeholder="用逗号分隔，如：内部工具, 数据看板" />
         </el-form-item>
         <el-form-item label="申请的 scopes">
           <el-checkbox-group v-model="createForm.scopes">
@@ -244,6 +282,9 @@
             <el-checkbox value="email">email</el-checkbox>
             <el-checkbox value="phone">phone</el-checkbox>
           </el-checkbox-group>
+        </el-form-item>
+        <el-form-item required>
+          <el-checkbox v-model="agreed">我已阅读并同意《开发者协议》</el-checkbox>
         </el-form-item>
       </el-form>
       <el-alert
@@ -258,13 +299,42 @@
     </el-dialog>
 
     <!-- 编辑应用 -->
-    <el-dialog v-model="editVisible" title="编辑应用" width="520px">
+    <el-dialog v-model="editVisible" title="编辑应用" width="560px">
       <el-form label-position="top">
         <el-form-item label="应用名称" required>
-          <el-input v-model="editForm.client_name" />
+          <el-input v-model="editForm.client_name" maxlength="64" />
+        </el-form-item>
+        <el-form-item label="应用图标（100×100）">
+          <div class="logo-upload" @click="openLogoPicker('edit')">
+            <img v-if="editForm.logo" :src="editForm.logo" class="logo-preview" alt="应用图标" />
+            <el-icon v-else class="logo-plus"><Plus /></el-icon>
+            <span v-if="editForm.logo" class="logo-clear" @click.stop="editForm.logo = ''">移除</span>
+          </div>
+        </el-form-item>
+        <el-form-item label="应用简介">
+          <el-input
+            v-model="editForm.description"
+            type="textarea"
+            :rows="3"
+            maxlength="200"
+            show-word-limit
+            placeholder="一句话介绍这个应用（200 字以内）"
+          />
+        </el-form-item>
+        <el-form-item label="官网域名">
+          <el-input v-model="editForm.website" placeholder="https://www.example.com" />
         </el-form-item>
         <el-form-item label="回调地址（每行一个）" required>
           <el-input v-model="editForm.redirect_uris_text" type="textarea" :rows="3" />
+        </el-form-item>
+        <el-form-item v-if="isEnterprise" label="ICP 备案号" required>
+          <el-input v-model="editForm.icp_number" placeholder="京ICP备XXXXXXXX号" />
+        </el-form-item>
+        <el-form-item v-else label="ICP 备案号">
+          <el-input v-model="editForm.icp_number" placeholder="选填，企业开发者必填" />
+        </el-form-item>
+        <el-form-item label="标签">
+          <el-input v-model="editForm.tags_text" placeholder="用逗号分隔，如：内部工具, 数据看板" />
         </el-form-item>
         <el-form-item label="scopes（空格分隔，必须含 openid）">
           <el-input v-model="editForm.scope" placeholder="openid profile email" />
@@ -305,14 +375,18 @@
       :info="dev"
       @saved="onProfileSaved"
     />
+
+    <input ref="logoInput" type="file" accept="image/*" hidden @change="onLogoPicked" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Search, EditPen } from '@element-plus/icons-vue';
+import { Search, EditPen, Plus } from '@element-plus/icons-vue';
 import DevProfileEditDialog from './DevProfileEditDialog.vue';
+import { CATEGORY_LABELS } from '../../api';
+import { fileToLogo } from '../../utils/logo';
 import devApi, {
   DevAppRow,
   DeveloperInfo,
@@ -327,7 +401,17 @@ const loadingUser = ref(true);
 const apps = ref<DevAppRow[]>([]);
 const dev = ref<DeveloperInfo | null>(getCurrentDeveloper());
 const keyword = ref('');
+const categoryFilter = ref('');
 const profileEditVisible = ref(false);
+const agreed = ref(false);
+const logoTarget = ref<'create' | 'edit'>('create');
+const logoInput = ref<HTMLInputElement | null>(null);
+
+const isEnterprise = computed(() => dev.value?.developer_type === 'enterprise');
+
+function categoryLabel(cat?: string): string {
+  return (cat && CATEGORY_LABELS[cat]) || '网站应用';
+}
 
 function onProfileSaved(updated: DeveloperInfo) {
   dev.value = updated;
@@ -356,10 +440,13 @@ const qualificationText = computed(
 
 const filteredApps = computed(() => {
   const kw = keyword.value.trim().toLowerCase();
-  if (!kw) return apps.value;
-  return apps.value.filter(
-    (a) => a.client_name.toLowerCase().includes(kw) || a.client_id.toLowerCase().includes(kw),
-  );
+  return apps.value.filter((a) => {
+    if (categoryFilter.value && a.category !== categoryFilter.value) return false;
+    if (!kw) return true;
+    return (
+      a.client_name.toLowerCase().includes(kw) || a.client_id.toLowerCase().includes(kw)
+    );
+  });
 });
 
 const applyVisible = ref(false);
@@ -376,10 +463,44 @@ const editingId = ref('');
 const createForm = ref({
   client_name: '',
   redirect_uris_text: '',
-  application_type: 'web',
+  category: 'web_app' as const,
+  logo: '',
+  description: '',
+  website: '',
+  icp_number: '',
+  tags_text: '',
   scopes: ['profile'],
 });
-const editForm = ref({ client_name: '', redirect_uris_text: '', scope: '' });
+const editForm = ref({
+  client_name: '',
+  redirect_uris_text: '',
+  category: 'web_app' as const,
+  logo: '',
+  description: '',
+  website: '',
+  icp_number: '',
+  tags_text: '',
+  scope: '',
+});
+
+function openLogoPicker(target: 'create' | 'edit') {
+  logoTarget.value = target;
+  logoInput.value?.click();
+}
+
+async function onLogoPicked(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+  try {
+    const dataUrl = await fileToLogo(file);
+    if (logoTarget.value === 'create') createForm.value.logo = dataUrl;
+    else editForm.value.logo = dataUrl;
+  } catch (err: any) {
+    ElMessage.error(err?.message || '图标处理失败');
+  }
+}
 
 onMounted(refreshAll);
 
@@ -489,8 +610,25 @@ function parseUris(text: string): string[] {
 }
 
 function openCreate() {
-  createForm.value = { client_name: '', redirect_uris_text: '', application_type: 'web', scopes: ['profile'] };
+  createForm.value = {
+    client_name: '',
+    redirect_uris_text: '',
+    category: 'web_app',
+    logo: '',
+    description: '',
+    website: '',
+    icp_number: '',
+    tags_text: '',
+    scopes: ['profile'],
+  };
+  agreed.value = false;
   createVisible.value = true;
+}
+
+function parseTags(text: string): string[] {
+  return text
+    ? text.split(/[,，]/).map((t) => t.trim()).filter(Boolean)
+    : [];
 }
 
 async function submitCreate() {
@@ -503,6 +641,14 @@ async function submitCreate() {
     ElMessage.warning('请至少填写一个回调地址');
     return;
   }
+  if (!agreed.value) {
+    ElMessage.warning('请先阅读并同意《开发者协议》');
+    return;
+  }
+  if (isEnterprise.value && !createForm.value.icp_number.trim()) {
+    ElMessage.warning('企业开发者必须填写 ICP 备案号');
+    return;
+  }
   creating.value = true;
   try {
     const { data } = await devApi.post<{
@@ -512,7 +658,12 @@ async function submitCreate() {
     }>('/api/developer/apps', {
       client_name: createForm.value.client_name,
       redirect_uris: uris,
-      application_type: createForm.value.application_type,
+      category: createForm.value.category,
+      logo: createForm.value.logo || undefined,
+      description: createForm.value.description || undefined,
+      website: createForm.value.website || undefined,
+      icp_number: createForm.value.icp_number || undefined,
+      tags: parseTags(createForm.value.tags_text),
       scope: ['openid', ...createForm.value.scopes].join(' '),
     });
     createVisible.value = false;
@@ -533,17 +684,33 @@ function openEdit(row: DevAppRow) {
   editForm.value = {
     client_name: row.client_name,
     redirect_uris_text: row.redirect_uris.join('\n'),
+    category: row.category || 'web_app',
+    logo: row.logo || '',
+    description: row.description || '',
+    website: row.website || '',
+    icp_number: row.icp_number || '',
+    tags_text: (row.tags || []).join(', '),
     scope: row.scope,
   };
   editVisible.value = true;
 }
 
 async function submitEdit() {
+  if (isEnterprise.value && !editForm.value.icp_number.trim()) {
+    ElMessage.warning('企业开发者必须填写 ICP 备案号');
+    return;
+  }
   editing.value = true;
   try {
     await devApi.patch(`/api/developer/apps/${editingId.value}`, {
       client_name: editForm.value.client_name,
       redirect_uris: parseUris(editForm.value.redirect_uris_text),
+      category: editForm.value.category,
+      logo: editForm.value.logo || undefined,
+      description: editForm.value.description || undefined,
+      website: editForm.value.website || undefined,
+      icp_number: editForm.value.icp_number || undefined,
+      tags: parseTags(editForm.value.tags_text),
       scope: editForm.value.scope,
     });
     editVisible.value = false;
@@ -725,6 +892,9 @@ async function submitEdit() {
   gap: 12px;
   flex-wrap: wrap;
 }
+.cat-filter {
+  margin-right: auto;
+}
 .app-name {
   display: flex;
   align-items: center;
@@ -741,6 +911,54 @@ async function submitEdit() {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  overflow: hidden;
+}
+.app-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.form-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #8a93a6;
+}
+.logo-upload {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  border: 1px dashed #cdd5e3;
+  border-radius: 12px;
+  background: #f7f9fc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+.logo-upload:hover {
+  border-color: #0b57d0;
+}
+.logo-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.logo-plus {
+  font-size: 26px;
+  color: #b3bdce;
+}
+.logo-clear {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  padding: 2px 8px;
+  font-size: 12px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  border-top-left-radius: 8px;
 }
 .app-title {
   font-weight: 600;

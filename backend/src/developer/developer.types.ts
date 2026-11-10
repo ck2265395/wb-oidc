@@ -13,6 +13,7 @@ export interface DeveloperRow {
   developer_status: DeveloperQualification;
   developer_reject_reason: string;
   developer_applied_at: Date | null;
+  developer_type: 'personal' | 'enterprise' | null;
   reject_reason: string;
   last_login_at: Date | null;
   created_at: Date;
@@ -28,6 +29,7 @@ export interface DeveloperView {
   developer_status: DeveloperQualification;
   developer_reject_reason: string;
   developer_applied_at: string | null;
+  developer_type: 'personal' | 'enterprise' | null;
   reject_reason: string;
   last_login_at: string | null;
   created_at: string;
@@ -38,6 +40,7 @@ export interface DeveloperPrincipal {
   email: string;
   status: DeveloperAccountStatus;
   developer_status: DeveloperQualification;
+  developer_type?: 'personal' | 'enterprise';
 }
 
 export function toDeveloperView(row: DeveloperRow): DeveloperView {
@@ -52,6 +55,7 @@ export function toDeveloperView(row: DeveloperRow): DeveloperView {
     developer_applied_at: row.developer_applied_at
       ? new Date(row.developer_applied_at).toISOString()
       : null,
+    developer_type: row.developer_type,
     reject_reason: row.reject_reason,
     last_login_at: row.last_login_at ? new Date(row.last_login_at).toISOString() : null,
     created_at: new Date(row.created_at).toISOString(),

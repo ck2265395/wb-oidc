@@ -19,6 +19,12 @@ export interface ClientRow {
   developer_email?: string | null;
   status: 'pending' | 'approved' | 'rejected' | 'suspended';
   reject_reason: string;
+  category: 'web_app' | 'mobile_app' | 'mini_program';
+  logo: string;
+  description: string;
+  website: string;
+  icp_number: string;
+  tags: string[];
   created_at: Date;
   updated_at: Date;
 }
@@ -27,6 +33,12 @@ export interface CreateClientDto {
   client_name: string;
   redirect_uris: string[];
   application_type?: 'web' | 'spa';
+  category?: 'web_app' | 'mobile_app' | 'mini_program';
+  logo?: string;
+  description?: string;
+  website?: string;
+  icp_number?: string;
+  tags?: string[];
   scope?: string;
   post_logout_redirect_uris?: string[];
 }
@@ -87,7 +99,41 @@ export class ClientsService {
         throw new BadRequestException(`回调地址不合法: ${uri}`);
       }
     }
-    const applicationType = dto.application_type === 'spa' ? 'spa' : 'web';
+
+    const category = dto.category || 'web_app';
+    // 应用类目决定安全形态：网站应用走 client_secret，移动/小程序走 PKCE
+    const applicationType =
+      dto.application_type === 'spa'
+        ? 'spa'
+        : category === 'web_app'
+          ? 'web'
+          : 'spa';
+
+    const description = (dto.description || '').slice(0, 200);
+    const website = (dto.website || '').trim();
+    if (website && !/^https?:\/\/.+/i.test(website)) {
+      throw new BadRequestException('官网域名不合法，需以 http(s):// 开头');
+    }
+    const icpNumber = (dto.icp_number || '').trim();
+    const tags = Array.isArray(dto.tags)
+      ? dto.tags.map((t) => String(t).trim()).filter(Boolean).slice(0, 20)
+      : [];
+    const logo = (dto.logo || '').trim();
+    if (logo && logo.length > 700000) {
+      throw new BadRequestException('应用图标过大，请上传 100×100 以内的图片');
+    }
+
+    // 企业开发者创建应用必须填写 ICP 备案号（参照 QQ 开放平台）
+    if (opts?.developerId) {
+      const { rows: devRows } = await getPool().query<{ developer_type?: string }>(
+        'SELECT developer_type FROM oidc_developer WHERE id = $1 LIMIT 1',
+        [opts.developerId],
+      );
+      if (devRows[0]?.developer_type === 'enterprise' && !icpNumber) {
+        throw new BadRequestException('企业开发者创建应用必须填写 ICP 备案号');
+      }
+    }
+
     const clientId = `app_${randomBytes(8).toString('hex')}`;
     const secret = randomBytes(24).toString('hex');
     const authMethod = applicationType === 'spa' ? 'none' : 'client_secret_basic';
@@ -99,8 +145,9 @@ export class ClientsService {
       `INSERT INTO oidc_clients
         (client_id, client_secret, client_name, application_type,
          token_endpoint_auth_method, redirect_uris, post_logout_redirect_uris,
-         grant_types, response_types, scope, developer_id, status)
-       VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8::jsonb,$9::jsonb,$10,$11,$12)
+         grant_types, response_types, scope, developer_id, status,
+         category, logo, description, website, icp_number, tags)
+       VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8::jsonb,$9::jsonb,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb)
        RETURNING *`,
       [
         clientId,
@@ -115,6 +162,12 @@ export class ClientsService {
         scope,
         opts?.developerId ?? null,
         status,
+        category,
+        logo,
+        description,
+        website,
+        icpNumber,
+        JSON.stringify(tags),
       ],
     );
     return { client: rows[0], secret };
@@ -130,11 +183,21 @@ export class ClientsService {
     return rows[0];
   }
 
-  /** 通用编辑：应用名称 / 回调地址 / scope（revertToPending：改动回调/scope 后回待审核） */
+  /** 通用编辑：应用名称 / 回调地址 / scope / 展示元数据（revertToPending：改动回调/scope 后回待审核） */
   async update(
     clientId: string,
-    dto: { client_name?: string; redirect_uris?: string[]; scope?: string },
-    opts?: { revertToPending?: boolean },
+    dto: {
+      client_name?: string;
+      redirect_uris?: string[];
+      scope?: string;
+      category?: 'web_app' | 'mobile_app' | 'mini_program';
+      logo?: string;
+      description?: string;
+      website?: string;
+      icp_number?: string;
+      tags?: string[];
+    },
+    opts?: { revertToPending?: boolean; developerId?: number },
   ): Promise<ClientRow> {
     const sets: string[] = [];
     const params: unknown[] = [];
@@ -171,8 +234,64 @@ export class ClientsService {
       sets.push(`scope = $${idx++}`);
       params.push(scopes.join(' '));
     }
+    if (dto.category !== undefined) {
+      const cat = ['web_app', 'mobile_app', 'mini_program'].includes(dto.category as string)
+        ? dto.category
+        : 'web_app';
+      sets.push(`category = $${idx++}`);
+      params.push(cat);
+      // 改类目同步调整安全形态（网站应用需要 secret，移动/小程序走 PKCE）
+      sets.push(
+        `application_type = $${idx++}`,
+        `token_endpoint_auth_method = $${idx++}`,
+      );
+      const isWeb = cat === 'web_app';
+      params.push(isWeb ? 'web' : 'spa', isWeb ? 'client_secret_basic' : 'none');
+    }
+    if (dto.description !== undefined) {
+      sets.push(`description = $${idx++}`);
+      params.push(String(dto.description).slice(0, 200));
+    }
+    if (dto.website !== undefined) {
+      const site = String(dto.website).trim();
+      if (site && !/^https?:\/\/.+/i.test(site)) {
+        throw new BadRequestException('官网域名不合法，需以 http(s):// 开头');
+      }
+      sets.push(`website = $${idx++}`);
+      params.push(site);
+    }
+    if (dto.icp_number !== undefined) {
+      sets.push(`icp_number = $${idx++}`);
+      params.push(String(dto.icp_number).trim());
+    }
+    if (dto.logo !== undefined) {
+      const logo = String(dto.logo).trim();
+      if (logo.length > 700000) {
+        throw new BadRequestException('应用图标过大，请上传 100×100 以内的图片');
+      }
+      sets.push(`logo = $${idx++}`);
+      params.push(logo);
+    }
+    if (dto.tags !== undefined) {
+      const tags = Array.isArray(dto.tags)
+        ? dto.tags.map((t) => String(t).trim()).filter(Boolean).slice(0, 20)
+        : [];
+      sets.push(`tags = $${idx++}::jsonb`);
+      params.push(JSON.stringify(tags));
+    }
     if (!sets.length) {
       throw new BadRequestException('没有可更新的字段');
+    }
+
+    // 企业开发者清空 ICP 备案号时拒绝（创建与编辑都需保留）
+    if (opts?.developerId && dto.icp_number !== undefined && dto.icp_number.trim() === '') {
+      const { rows: devRows } = await getPool().query<{ developer_type?: string }>(
+        'SELECT developer_type FROM oidc_developer WHERE id = $1 LIMIT 1',
+        [opts.developerId],
+      );
+      if (devRows[0]?.developer_type === 'enterprise') {
+        throw new BadRequestException('企业开发者应用必须保留 ICP 备案号');
+      }
     }
 
     sets.push('updated_at = NOW()');

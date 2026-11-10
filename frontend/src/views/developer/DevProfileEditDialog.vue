@@ -30,6 +30,15 @@
     </p>
 
     <el-form ref="formRef" :model="form" :rules="rules" label-position="top">
+      <el-form-item label="开发者类型" required>
+        <el-radio-group v-model="form.developer_type">
+          <el-radio value="personal">个人开发者</el-radio>
+          <el-radio value="enterprise">企业开发者</el-radio>
+        </el-radio-group>
+        <div v-if="form.developer_type === 'enterprise'" class="type-hint">
+          企业开发者创建应用时需填写 ICP 备案号，请提供方（公司 / 团队）填写真实全称。
+        </div>
+      </el-form-item>
       <el-form-item label="公司 / 团队" prop="company">
         <el-input
           v-model="form.company"
@@ -84,7 +93,7 @@ const visible = computed({
 });
 
 const formRef = ref<FormInstance>();
-const form = ref({ company: '', contact: '' });
+const form = ref({ company: '', contact: '', developer_type: 'personal' as const });
 const saving = ref(false);
 const rules: FormRules = {
   company: [
@@ -130,6 +139,7 @@ watch(
     form.value = {
       company: props.info?.company || '',
       contact: props.info?.contact || '',
+      developer_type: props.info?.developer_type || 'personal',
     };
     formRef.value?.clearValidate();
   },
@@ -148,8 +158,16 @@ async function save(submit: boolean) {
   try {
     const updated =
       submit && canApply.value
-        ? await devApplyDeveloper(form.value.company.trim(), form.value.contact.trim())
-        : await devUpdateProfile(form.value.company.trim(), form.value.contact.trim());
+        ? await devApplyDeveloper(
+            form.value.company.trim(),
+            form.value.contact.trim(),
+            form.value.developer_type,
+          )
+        : await devUpdateProfile(
+            form.value.company.trim(),
+            form.value.contact.trim(),
+            form.value.developer_type,
+          );
     emit('saved', updated);
     ElMessage.success(
       submit && canApply.value ? '资料已提交，等待管理员审核' : '资料已保存',
@@ -169,6 +187,16 @@ async function save(submit: boolean) {
   font-size: 13px;
   line-height: 1.7;
   color: #6b7280;
+}
+.type-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #b06a00;
+  background: #fff7e6;
+  border: 1px solid #ffe2b8;
+  border-radius: 8px;
+  padding: 8px 10px;
 }
 .mb16 {
   margin-bottom: 16px;

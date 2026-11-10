@@ -57,7 +57,18 @@ export class DeveloperAppsController {
   async update(
     @Req() req: Request,
     @Param('clientId') clientId: string,
-    @Body() dto: { client_name?: string; redirect_uris?: string[]; scope?: string },
+    @Body()
+    dto: {
+      client_name?: string;
+      redirect_uris?: string[];
+      scope?: string;
+      category?: 'web_app' | 'mobile_app' | 'mini_program';
+      logo?: string;
+      description?: string;
+      website?: string;
+      icp_number?: string;
+      tags?: string[];
+    },
   ) {
     const dev = currentDeveloper(req);
     await this.devAuth.assertDeveloperApproved(dev.id);
@@ -67,7 +78,10 @@ export class DeveloperAppsController {
     if (row.status === 'pending') {
       throw new BadRequestException('应用正在审核中，暂不能修改');
     }
-    const updated = await this.clients.update(clientId, dto, { revertToPending: true });
+    const updated = await this.clients.update(clientId, dto, {
+      revertToPending: true,
+      developerId: dev.id,
+    });
     return { data: safeClient(updated) };
   }
 }

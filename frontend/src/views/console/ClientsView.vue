@@ -67,6 +67,12 @@
           <el-radio-button value="pending">待审核</el-radio-button>
           <el-radio-button value="approved">已通过</el-radio-button>
         </el-radio-group>
+        <el-radio-group v-model="categoryFilter" class="ml12">
+          <el-radio-button value="">全类目</el-radio-button>
+          <el-radio-button value="web_app">网站应用</el-radio-button>
+          <el-radio-button value="mobile_app">移动应用</el-radio-button>
+          <el-radio-button value="mini_program">小程序</el-radio-button>
+        </el-radio-group>
         <div class="spacer" />
         <el-tag v-if="pendingClients" type="warning" effect="light" round size="large">
           {{ pendingClients }} 个应用待审核
@@ -74,10 +80,13 @@
       </div>
 
     <el-table :data="filteredClients" v-loading="loading" stripe>
-      <el-table-column label="应用名称" min-width="180">
+      <el-table-column label="应用" min-width="200">
         <template #default="{ row }">
           <div class="app-cell">
-            <div class="app-avatar">{{ (row.client_name || '?').slice(0, 1) }}</div>
+            <div class="app-avatar">
+              <img v-if="row.logo" :src="row.logo" alt="" class="app-avatar-img" />
+              <span v-else>{{ (row.client_name || '?').slice(0, 1) }}</span>
+            </div>
             <div>
               <div class="app-name">{{ row.client_name }}</div>
               <div class="app-cid mono">{{ row.client_id }}</div>
@@ -91,9 +100,9 @@
           <el-tag v-else size="small" type="info">平台创建</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="类型" width="90">
+      <el-table-column label="类目" width="110">
         <template #default="{ row }">
-          <el-tag size="small">{{ row.application_type === 'spa' ? '公共' : '机密' }}</el-tag>
+          <el-tag size="small" effect="plain">{{ categoryLabel(row.category) }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column label="回调地址" min-width="220">
@@ -143,10 +152,38 @@
     </el-card>
 
     <!-- 创建应用 -->
-    <el-dialog v-model="createVisible" title="注册新应用" width="520px">
+    <el-dialog v-model="createVisible" title="注册新应用" width="560px">
       <el-form label-position="top">
         <el-form-item label="应用名称" required>
-          <el-input v-model="createForm.client_name" placeholder="例如：小鹅砍价小程序" />
+          <el-input v-model="createForm.client_name" placeholder="例如：小鹅砍价小程序" maxlength="64" />
+        </el-form-item>
+        <el-form-item label="应用图标（100×100）">
+          <div class="logo-upload" @click="openLogoPicker('create')">
+            <img v-if="createForm.logo" :src="createForm.logo" class="logo-preview" alt="应用图标" />
+            <el-icon v-else class="logo-plus"><Plus /></el-icon>
+            <span v-if="createForm.logo" class="logo-clear" @click.stop="createForm.logo = ''">移除</span>
+          </div>
+        </el-form-item>
+        <el-form-item label="应用类目" required>
+          <el-select v-model="createForm.category" placeholder="选择应用类目">
+            <el-option label="网站应用" value="web_app" />
+            <el-option label="移动应用" value="mobile_app" />
+            <el-option label="小程序" value="mini_program" />
+          </el-select>
+          <div class="form-hint">网站应用走 client_secret；移动应用 / 小程序走 PKCE，无需 secret。</div>
+        </el-form-item>
+        <el-form-item label="应用简介">
+          <el-input
+            v-model="createForm.description"
+            type="textarea"
+            :rows="3"
+            maxlength="200"
+            show-word-limit
+            placeholder="一句话介绍这个应用（200 字以内）"
+          />
+        </el-form-item>
+        <el-form-item label="官网域名">
+          <el-input v-model="createForm.website" placeholder="https://www.example.com" />
         </el-form-item>
         <el-form-item label="回调地址（每行一个）" required>
           <el-input
@@ -156,11 +193,14 @@
             placeholder="https://app.example.com/auth/callback"
           />
         </el-form-item>
-        <el-form-item label="应用类型">
-          <el-radio-group v-model="createForm.application_type">
-            <el-radio value="web">机密应用（有后端，client_secret 走后端）</el-radio>
-            <el-radio value="spa">公共应用（SPA/小程序，强制 PKCE，无需 secret）</el-radio>
-          </el-radio-group>
+        <el-form-item label="ICP 备案号">
+          <el-input v-model="createForm.icp_number" placeholder="京ICP备XXXXXXXX号（选填）" />
+        </el-form-item>
+        <el-form-item label="标签">
+          <el-input
+            v-model="createForm.tags_text"
+            placeholder="用逗号分隔，如：内部工具, 数据看板"
+          />
         </el-form-item>
         <el-form-item label="申请的 scopes">
           <el-checkbox-group v-model="createForm.scopes">
@@ -178,13 +218,47 @@
     </el-dialog>
 
     <!-- 编辑应用 -->
-    <el-dialog v-model="editVisible" title="编辑应用" width="520px">
+    <el-dialog v-model="editVisible" title="编辑应用" width="560px">
       <el-form label-position="top">
         <el-form-item label="应用名称" required>
-          <el-input v-model="editForm.client_name" />
+          <el-input v-model="editForm.client_name" maxlength="64" />
+        </el-form-item>
+        <el-form-item label="应用图标（100×100）">
+          <div class="logo-upload" @click="openLogoPicker('edit')">
+            <img v-if="editForm.logo" :src="editForm.logo" class="logo-preview" alt="应用图标" />
+            <el-icon v-else class="logo-plus"><Plus /></el-icon>
+            <span v-if="editForm.logo" class="logo-clear" @click.stop="editForm.logo = ''">移除</span>
+          </div>
+        </el-form-item>
+        <el-form-item label="应用类目" required>
+          <el-select v-model="editForm.category" placeholder="选择应用类目">
+            <el-option label="网站应用" value="web_app" />
+            <el-option label="移动应用" value="mobile_app" />
+            <el-option label="小程序" value="mini_program" />
+          </el-select>
+          <div class="form-hint">修改类目会同步调整应用的安全形态（是否需要 client_secret）。</div>
+        </el-form-item>
+        <el-form-item label="应用简介">
+          <el-input
+            v-model="editForm.description"
+            type="textarea"
+            :rows="3"
+            maxlength="200"
+            show-word-limit
+            placeholder="一句话介绍这个应用（200 字以内）"
+          />
+        </el-form-item>
+        <el-form-item label="官网域名">
+          <el-input v-model="editForm.website" placeholder="https://www.example.com" />
         </el-form-item>
         <el-form-item label="回调地址（每行一个）" required>
           <el-input v-model="editForm.redirect_uris_text" type="textarea" :rows="3" />
+        </el-form-item>
+        <el-form-item label="ICP 备案号">
+          <el-input v-model="editForm.icp_number" placeholder="京ICP备XXXXXXXX号（选填）" />
+        </el-form-item>
+        <el-form-item label="标签">
+          <el-input v-model="editForm.tags_text" placeholder="用逗号分隔，如：内部工具, 数据看板" />
         </el-form-item>
         <el-form-item label="scopes（空格分隔，必须含 openid）">
           <el-input v-model="editForm.scope" placeholder="openid profile email" />
@@ -227,6 +301,8 @@
         <el-button type="danger" :loading="rejecting" @click="submitReject">确认拒绝</el-button>
       </template>
     </el-dialog>
+
+    <input ref="logoInput" type="file" accept="image/*" hidden @change="onLogoPicked" />
   </ConsolePage>
 </template>
 
@@ -239,23 +315,32 @@ import {
 import ConsolePage from '../../components/console/ConsolePage.vue';
 import api, {
   ClientRow,
+  CATEGORY_LABELS,
   createPkce,
   ISSUER,
   rotateClientSecret,
   updateClient,
 } from '../../api';
+import { fileToLogo } from '../../utils/logo';
 
 const loading = ref(false);
 const clients = ref<ClientRow[]>([]);
 const statusFilter = ref('');
+const categoryFilter = ref('');
 const rejectVisible = ref(false);
 const rejectReason = ref('');
 const rejecting = ref(false);
 const rejectTarget = ref<ClientRow | null>(null);
 const createVisible = ref(false);
+const logoTarget = ref<'create' | 'edit'>('create');
+const logoInput = ref<HTMLInputElement | null>(null);
 
 const filteredClients = computed(() =>
-  statusFilter.value ? clients.value.filter((c) => c.status === statusFilter.value) : clients.value,
+  clients.value.filter((c) => {
+    if (statusFilter.value && c.status !== statusFilter.value) return false;
+    if (categoryFilter.value && c.category !== categoryFilter.value) return false;
+    return true;
+  }),
 );
 const pendingClients = computed(
   () => clients.value.filter((c) => c.status === 'pending').length,
@@ -276,10 +361,48 @@ const editingId = ref('');
 const createForm = ref({
   client_name: '',
   redirect_uris_text: '',
-  application_type: 'web',
+  category: 'web_app' as const,
+  logo: '',
+  description: '',
+  website: '',
+  icp_number: '',
+  tags_text: '',
   scopes: ['openid', 'profile'],
 });
-const editForm = ref({ client_name: '', redirect_uris_text: '', scope: '' });
+const editForm = ref({
+  client_name: '',
+  redirect_uris_text: '',
+  category: 'web_app' as const,
+  logo: '',
+  description: '',
+  website: '',
+  icp_number: '',
+  tags_text: '',
+  scope: '',
+});
+
+function categoryLabel(cat?: string): string {
+  return (cat && CATEGORY_LABELS[cat]) || '网站应用';
+}
+
+function openLogoPicker(target: 'create' | 'edit') {
+  logoTarget.value = target;
+  logoInput.value?.click();
+}
+
+async function onLogoPicked(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+  try {
+    const dataUrl = await fileToLogo(file);
+    if (logoTarget.value === 'create') createForm.value.logo = dataUrl;
+    else editForm.value.logo = dataUrl;
+  } catch (err: any) {
+    ElMessage.error(err?.message || '图标处理失败');
+  }
+}
 
 onMounted(loadClients);
 
@@ -297,7 +420,12 @@ function openCreate() {
   createForm.value = {
     client_name: '',
     redirect_uris_text: '',
-    application_type: 'web',
+    category: 'web_app',
+    logo: '',
+    description: '',
+    website: '',
+    icp_number: '',
+    tags_text: '',
     scopes: ['openid', 'profile'],
   };
   createVisible.value = true;
@@ -318,7 +446,14 @@ async function submitCreate() {
       {
         client_name: createForm.value.client_name,
         redirect_uris: parseUris(createForm.value.redirect_uris_text),
-        application_type: createForm.value.application_type,
+        category: createForm.value.category,
+        logo: createForm.value.logo || undefined,
+        description: createForm.value.description || undefined,
+        website: createForm.value.website || undefined,
+        icp_number: createForm.value.icp_number || undefined,
+        tags: createForm.value.tags_text
+          ? createForm.value.tags_text.split(/[,，]/).map((t) => t.trim()).filter(Boolean)
+          : [],
         scope: ['openid', ...createForm.value.scopes.filter((s) => s !== 'openid')].join(' '),
       },
     );
@@ -338,6 +473,12 @@ function openEdit(row: ClientRow) {
   editForm.value = {
     client_name: row.client_name,
     redirect_uris_text: row.redirect_uris.join('\n'),
+    category: row.category || 'web_app',
+    logo: row.logo || '',
+    description: row.description || '',
+    website: row.website || '',
+    icp_number: row.icp_number || '',
+    tags_text: (row.tags || []).join(', '),
     scope: row.scope,
   };
   editVisible.value = true;
@@ -349,6 +490,14 @@ async function submitEdit() {
     await updateClient(editingId.value, {
       client_name: editForm.value.client_name,
       redirect_uris: parseUris(editForm.value.redirect_uris_text),
+      category: editForm.value.category,
+      logo: editForm.value.logo || undefined,
+      description: editForm.value.description || undefined,
+      website: editForm.value.website || undefined,
+      icp_number: editForm.value.icp_number || undefined,
+      tags: editForm.value.tags_text
+        ? editForm.value.tags_text.split(/[,，]/).map((t) => t.trim()).filter(Boolean)
+        : [],
       scope: editForm.value.scope,
     });
     editVisible.value = false;
@@ -496,6 +645,54 @@ function extractError(e: any, fallback: string): string {
 .mt16 {
   margin-top: 16px;
 }
+.ml12 {
+  margin-left: 12px;
+}
+.cp-toolbar .el-radio-group {
+  margin-right: 0;
+}
+.form-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ink-300, #8a93a6);
+}
+.logo-upload {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  border: 1px dashed #cdd5e3;
+  border-radius: 12px;
+  background: #f7f9fc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+.logo-upload:hover {
+  border-color: #0b57d0;
+}
+.logo-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.logo-plus {
+  font-size: 26px;
+  color: #b3bdce;
+}
+.logo-clear {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  padding: 2px 8px;
+  font-size: 12px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  border-top-left-radius: 8px;
+}
 .uri-line {
   font-size: 12px;
   color: #666;
@@ -517,6 +714,12 @@ function extractError(e: any, fallback: string): string {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  overflow: hidden;
+}
+.app-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .app-name {
   font-weight: 600;

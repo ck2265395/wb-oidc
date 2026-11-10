@@ -18,13 +18,14 @@ export class DeveloperApplyController {
   @HttpCode(200)
   async apply(
     @Req() req: Request,
-    @Body() body: { company?: string; contact?: string },
+    @Body() body: { company?: string; contact?: string; developer_type?: string },
   ) {
     const dev = currentDeveloper(req);
     const row = await this.auth.applyDeveloper(
       dev.id,
       String(body?.company || ''),
       String(body?.contact || ''),
+      body?.developer_type === 'enterprise' ? 'enterprise' : 'personal',
     );
     return {
       data: toDeveloperView(row),
@@ -37,13 +38,14 @@ export class DeveloperApplyController {
   @HttpCode(200)
   async updateProfile(
     @Req() req: Request,
-    @Body() body: { company?: string; contact?: string },
+    @Body() body: { company?: string; contact?: string; developer_type?: string },
   ) {
     const dev = currentDeveloper(req);
     const row = await this.auth.updateProfile(
       dev.id,
       String(body?.company || ''),
       String(body?.contact || ''),
+      body?.developer_type === 'enterprise' ? 'enterprise' : 'personal',
     );
     return {
       data: toDeveloperView(row),

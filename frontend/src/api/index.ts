@@ -157,15 +157,38 @@ export interface ClientRow {
   developer_email?: string | null;
   status: 'pending' | 'approved' | 'rejected' | 'suspended';
   reject_reason: string;
+  category: 'web_app' | 'mobile_app' | 'mini_program';
+  logo: string;
+  description: string;
+  website: string;
+  icp_number: string;
+  tags: string[];
   created_at: string;
   updated_at?: string;
 }
+
+/** 应用类目标签映射 */
+export const CATEGORY_LABELS: Record<string, string> = {
+  web_app: '网站应用',
+  mobile_app: '移动应用',
+  mini_program: '小程序',
+};
 
 // ===== 应用管理扩展 =====
 
 export async function updateClient(
   clientId: string,
-  dto: { client_name?: string; redirect_uris?: string[]; scope?: string },
+  dto: {
+    client_name?: string;
+    redirect_uris?: string[];
+    scope?: string;
+    category?: 'web_app' | 'mobile_app' | 'mini_program';
+    logo?: string;
+    description?: string;
+    website?: string;
+    icp_number?: string;
+    tags?: string[];
+  },
 ): Promise<ClientRow> {
   const { data } = await api.patch<{ data: ClientRow }>(`/api/admin/clients/${clientId}`, dto);
   return data.data;

@@ -77,7 +77,18 @@ export class ClientsController {
   async update(
     @CurrentAdmin() admin: AdminPrincipal,
     @Param('clientId') clientId: string,
-    @Body() dto: { client_name?: string; redirect_uris?: string[]; scope?: string },
+    @Body()
+    dto: {
+      client_name?: string;
+      redirect_uris?: string[];
+      scope?: string;
+      category?: 'web_app' | 'mobile_app' | 'mini_program';
+      logo?: string;
+      description?: string;
+      website?: string;
+      icp_number?: string;
+      tags?: string[];
+    },
     @Req() req: Request,
   ): Promise<{ data: ClientRow }> {
     const row = await this.clientsService.update(clientId, dto);

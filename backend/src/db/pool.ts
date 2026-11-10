@@ -55,6 +55,12 @@ CREATE TABLE IF NOT EXISTS oidc_clients (
   grant_types JSONB NOT NULL DEFAULT '["authorization_code","refresh_token"]'::jsonb,
   response_types JSONB NOT NULL DEFAULT '["code"]'::jsonb,
   scope TEXT NOT NULL DEFAULT 'openid profile email',
+  category VARCHAR(24) NOT NULL DEFAULT 'web_app', -- web_app | mobile_app | mini_program
+  logo TEXT NOT NULL DEFAULT '',                  -- 应用图标（base64 data URL）
+  description TEXT NOT NULL DEFAULT '',            -- 应用简介（≤200 字）
+  website TEXT NOT NULL DEFAULT '',                -- 官网域名
+  icp_number TEXT NOT NULL DEFAULT '',             -- ICP 备案号（企业开发者必填）
+  tags JSONB NOT NULL DEFAULT '[]'::jsonb,         -- 自由标签，用于分组/筛选
   enabled BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -130,6 +136,7 @@ CREATE TABLE IF NOT EXISTS oidc_developer (
   developer_status VARCHAR(16) NOT NULL DEFAULT 'none',
   developer_reject_reason TEXT NOT NULL DEFAULT '',
   developer_applied_at TIMESTAMPTZ,
+  developer_type VARCHAR(16),                      -- personal | enterprise（区分个人/企业开发者）
   reject_reason TEXT NOT NULL DEFAULT '',
   last_login_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -158,6 +165,17 @@ ALTER TABLE oidc_clients ADD COLUMN IF NOT EXISTS status VARCHAR(16) NOT NULL DE
 ALTER TABLE oidc_clients ADD COLUMN IF NOT EXISTS reject_reason TEXT NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS idx_clients_developer ON oidc_clients (developer_id);
 CREATE INDEX IF NOT EXISTS idx_clients_status ON oidc_clients (status);
+
+-- 应用展示元数据（对齐 QQ/微信/Google 创建应用表单）：类目、图标、简介、官网、ICP、标签
+ALTER TABLE oidc_clients ADD COLUMN IF NOT EXISTS category VARCHAR(24) NOT NULL DEFAULT 'web_app';
+ALTER TABLE oidc_clients ADD COLUMN IF NOT EXISTS logo TEXT NOT NULL DEFAULT '';
+ALTER TABLE oidc_clients ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT '';
+ALTER TABLE oidc_clients ADD COLUMN IF NOT EXISTS website TEXT NOT NULL DEFAULT '';
+ALTER TABLE oidc_clients ADD COLUMN IF NOT EXISTS icp_number TEXT NOT NULL DEFAULT '';
+ALTER TABLE oidc_clients ADD COLUMN IF NOT EXISTS tags JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+-- 开发者类型：个人 / 企业（影响创建应用时 ICP 备案号是否必填，参照 QQ）
+ALTER TABLE oidc_developer ADD COLUMN IF NOT EXISTS developer_type VARCHAR(16);
 
 -- v2 幂等迁移：老库里 status 曾兼任「开发者审核状态」，现拆成账号状态 + 开发者资格。
 -- ADD COLUMN 的 DEFAULT 'approved' 只用于老库回填（保住已审核通过的开发者）；
