@@ -185,6 +185,31 @@ export class DeveloperAuthService {
   }
 
   /**
+   * 编辑开发者资料：只更新公司与联系方式，不改变开发者资格状态。
+   * 任何正常登录的用户都可以维护自己的资料；审核中 / 已认证用户改资料
+   * 不会因此被重新拉回审核（资格审核只由 applyDeveloper 或管理员触发）。
+   */
+  async updateProfile(id: number, company: string, contact: string): Promise<DeveloperRow> {
+    const org = (company || '').trim();
+    const phone = (contact || '').trim();
+    if (org.length < 2) throw new BadRequestException('请填写公司 / 团队名称（至少 2 个字符）');
+    if (phone.length < 2) throw new BadRequestException('请填写联系方式');
+    if (org.length > 128 || phone.length > 64) {
+      throw new BadRequestException('资料长度超出限制');
+    }
+    const { rows } = await getPool().query<DeveloperRow>(
+      `UPDATE oidc_developer
+          SET company = $2, contact = $3, updated_at = NOW()
+        WHERE id = $1
+          AND status = 'active'
+        RETURNING *`,
+      [id, org, phone],
+    );
+    if (!rows.length) throw new ForbiddenException('账号已被停用，无法修改资料');
+    return rows[0];
+  }
+
+  /**
    * 创建/修改应用前的实时资格校验。
    * 必须查库而不能只信 JWT：管理员审核通过后，用户手上的旧 token 仍是旧状态。
    */

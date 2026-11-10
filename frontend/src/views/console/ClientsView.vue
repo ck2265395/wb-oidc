@@ -1,18 +1,90 @@
 <template>
-  <div>
-    <div class="toolbar">
-      <el-button type="primary" @click="openCreate">+ 注册新应用</el-button>
-      <el-radio-group v-model="statusFilter" @change="loadClients">
-        <el-radio-button value="">全部</el-radio-button>
-        <el-radio-button value="pending">待审核</el-radio-button>
-        <el-radio-button value="approved">已通过</el-radio-button>
-      </el-radio-group>
-      <el-button @click="loadClients">刷新</el-button>
-    </div>
+  <ConsolePage
+    eyebrow="APPLICATIONS"
+    title="应用管理"
+    desc="管理接入应用、回调白名单、密钥与审核状态。"
+  >
+    <template #actions>
+      <el-button :icon="Refresh" @click="loadClients">刷新</el-button>
+      <el-button type="primary" :icon="Plus" @click="openCreate">注册新应用</el-button>
+    </template>
+
+    <el-row :gutter="16" class="stat-grid">
+      <el-col :span="6">
+        <el-card shadow="never" class="stat-card">
+          <div class="stat-flex">
+            <div>
+              <div class="stat-label">接入应用</div>
+              <div class="stat-value">{{ clients.length }}</div>
+              <div class="stat-sub">平台全部应用</div>
+            </div>
+            <div class="stat-icon"><el-icon><Grid /></el-icon></div>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card shadow="never" class="stat-card">
+          <div class="stat-flex">
+            <div>
+              <div class="stat-label">待审核</div>
+              <div class="stat-value">{{ pendingClients }}</div>
+              <div class="stat-sub">等待处理</div>
+            </div>
+            <div class="stat-icon warn"><el-icon><Bell /></el-icon></div>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card shadow="never" class="stat-card">
+          <div class="stat-flex">
+            <div>
+              <div class="stat-label">已通过</div>
+              <div class="stat-value">{{ approvedClients }}</div>
+              <div class="stat-sub">审核已通过</div>
+            </div>
+            <div class="stat-icon success"><el-icon><CircleCheck /></el-icon></div>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card shadow="never" class="stat-card">
+          <div class="stat-flex">
+            <div>
+              <div class="stat-label">启用中</div>
+              <div class="stat-value">{{ enabledClients }}</div>
+              <div class="stat-sub">可发起 OIDC 登录</div>
+            </div>
+            <div class="stat-icon"><el-icon><Key /></el-icon></div>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <el-card shadow="never" class="box-card">
+      <div class="cp-toolbar">
+        <el-radio-group v-model="statusFilter">
+          <el-radio-button value="">全部</el-radio-button>
+          <el-radio-button value="pending">待审核</el-radio-button>
+          <el-radio-button value="approved">已通过</el-radio-button>
+        </el-radio-group>
+        <div class="spacer" />
+        <el-tag v-if="pendingClients" type="warning" effect="light" round size="large">
+          {{ pendingClients }} 个应用待审核
+        </el-tag>
+      </div>
 
     <el-table :data="filteredClients" v-loading="loading" stripe>
-      <el-table-column prop="client_name" label="应用名称" min-width="140" />
-      <el-table-column prop="client_id" label="client_id" min-width="180" />
+      <el-table-column label="应用名称" min-width="180">
+        <template #default="{ row }">
+          <div class="app-cell">
+            <div class="app-avatar">{{ (row.client_name || '?').slice(0, 1) }}</div>
+            <div>
+              <div class="app-name">{{ row.client_name }}</div>
+              <div class="app-cid mono">{{ row.client_id }}</div>
+            </div>
+          </div>
+        </template>
+      </el-table-column>
       <el-table-column prop="developer_email" label="申请人" min-width="160">
         <template #default="{ row }">
           <span v-if="row.developer_email">{{ row.developer_email }}</span>
@@ -68,6 +140,7 @@
         </template>
       </el-table-column>
     </el-table>
+    </el-card>
 
     <!-- 创建应用 -->
     <el-dialog v-model="createVisible" title="注册新应用" width="520px">
@@ -154,12 +227,16 @@
         <el-button type="danger" :loading="rejecting" @click="submitReject">确认拒绝</el-button>
       </template>
     </el-dialog>
-  </div>
+  </ConsolePage>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import {
+  Refresh, Plus, Grid, Bell, CircleCheck, Key,
+} from '@element-plus/icons-vue';
+import ConsolePage from '../../components/console/ConsolePage.vue';
 import api, {
   ClientRow,
   createPkce,
@@ -179,6 +256,15 @@ const createVisible = ref(false);
 
 const filteredClients = computed(() =>
   statusFilter.value ? clients.value.filter((c) => c.status === statusFilter.value) : clients.value,
+);
+const pendingClients = computed(
+  () => clients.value.filter((c) => c.status === 'pending').length,
+);
+const approvedClients = computed(
+  () => clients.value.filter((c) => c.status === 'approved').length,
+);
+const enabledClients = computed(
+  () => clients.value.filter((c) => c.status === 'approved' && c.enabled).length,
 );
 const creating = ref(false);
 const editVisible = ref(false);
@@ -345,6 +431,7 @@ async function doReview(row: ClientRow, action: 'approve' | 'reject') {
   }
   await api.post(`/api/admin/clients/${row.client_id}/review`, { action: 'approve' });
   ElMessage.success('审核通过');
+  window.dispatchEvent(new Event('console:pending-changed'));
   await loadClients();
 }
 
@@ -361,6 +448,7 @@ async function submitReject() {
     });
     rejectVisible.value = false;
     ElMessage.success('已拒绝');
+    window.dispatchEvent(new Event('console:pending-changed'));
     await loadClients();
   } catch (e: any) {
     ElMessage.error(extractError(e, '操作失败'));
@@ -402,8 +490,8 @@ function extractError(e: any, fallback: string): string {
 </script>
 
 <style scoped>
-.toolbar {
-  margin-bottom: 16px;
+.stat-grid {
+  margin-bottom: 18px;
 }
 .mt16 {
   margin-top: 16px;
@@ -412,5 +500,30 @@ function extractError(e: any, fallback: string): string {
   font-size: 12px;
   color: #666;
   word-break: break-all;
+}
+.app-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.app-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #0b57d0, #0a3d91);
+  color: #fff;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.app-name {
+  font-weight: 600;
+  color: var(--ink-900);
+}
+.app-cid {
+  margin-top: 2px;
+  color: var(--ink-300);
 }
 </style>

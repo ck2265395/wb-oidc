@@ -145,6 +145,19 @@ export async function devApplyDeveloper(
   return data.data;
 }
 
+/** 编辑开发者资料：只保存公司/联系方式，不改变开发者资格状态 */
+export async function devUpdateProfile(
+  company: string,
+  contact: string,
+): Promise<DeveloperInfo> {
+  const { data } = await devApi.patch<{ data: DeveloperInfo; message: string }>(
+    '/api/developer/profile',
+    { company, contact },
+  );
+  currentDeveloper = data.data;
+  return data.data;
+}
+
 export async function devLogout(): Promise<void> {
   try {
     await devApi.post('/api/developer/auth/logout');

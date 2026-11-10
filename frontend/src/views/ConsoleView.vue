@@ -1,54 +1,127 @@
 <template>
-  <div class="console-page">
+  <div class="console-shell">
     <el-container class="layout">
-      <el-aside width="210px" class="aside">
-        <div class="logo"><img class="logo-badge" src="/moondrop.ico" alt="M" /> Moondrop 控制台</div>
-        <el-menu
-          :default-active="route.path"
-          router
-          class="menu"
-          background-color="#0f172a"
-          text-color="#94a3b8"
-          active-text-color="#8fb4ee"
-        >
-          <el-menu-item index="/console/overview">
-            <span>📊 概览</span>
-          </el-menu-item>
-          <el-menu-item index="/console/clients">
-            <span>📦 应用管理</span>
-          </el-menu-item>
-          <el-menu-item index="/console/developers">
-            <span>👥 用户与开发者</span>
-          </el-menu-item>
-          <el-menu-item index="/console/admins">
-            <span>👤 管理员</span>
-          </el-menu-item>
-          <el-menu-item index="/console/legacy-users">
-            <span>🔍 老库用户</span>
-          </el-menu-item>
-          <el-menu-item index="/console/audit">
-            <span>📝 审计日志</span>
-          </el-menu-item>
-          <el-menu-item index="/console/sessions">
-            <span>🔑 会话管理</span>
-          </el-menu-item>
-        </el-menu>
+      <el-aside width="236px" class="aside">
+        <div class="brand">
+          <img class="brand-logo" src="/moondrop.ico" alt="M" />
+          <div class="brand-text">
+            <div class="brand-name">Moondrop</div>
+            <div class="brand-sub">统一身份管理控制台</div>
+          </div>
+        </div>
+
+        <div class="menu-scroll">
+          <el-menu
+            :default-active="route.path"
+            router
+            class="menu"
+            background-color="#0b1a33"
+            text-color="#9fb0c9"
+            active-text-color="#ffffff"
+          >
+            <el-menu-item-group title="工作台">
+              <el-menu-item index="/console/overview">
+                <el-icon><Odometer /></el-icon><span>总览</span>
+              </el-menu-item>
+            </el-menu-item-group>
+
+            <el-menu-item-group title="审核管理">
+              <el-menu-item index="/console/developers">
+                <el-icon><User /></el-icon><span>开发者审核</span>
+                <el-tag
+                  v-if="pendingDevelopers"
+                  size="small"
+                  type="danger"
+                  effect="dark"
+                  round
+                  class="menu-count"
+                >
+                  {{ pendingDevelopers }}
+                </el-tag>
+              </el-menu-item>
+              <el-menu-item index="/console/clients">
+                <el-icon><Grid /></el-icon><span>应用管理</span>
+                <el-tag
+                  v-if="pendingClients"
+                  size="small"
+                  type="warning"
+                  effect="dark"
+                  round
+                  class="menu-count"
+                >
+                  {{ pendingClients }}
+                </el-tag>
+              </el-menu-item>
+            </el-menu-item-group>
+
+            <el-menu-item-group title="系统与用户">
+              <el-menu-item index="/console/admins">
+                <el-icon><UserFilled /></el-icon><span>管理员</span>
+              </el-menu-item>
+              <el-menu-item index="/console/legacy-users">
+                <el-icon><Search /></el-icon><span>老库用户</span>
+              </el-menu-item>
+              <el-menu-item index="/console/audit">
+                <el-icon><Document /></el-icon><span>审计日志</span>
+              </el-menu-item>
+              <el-menu-item index="/console/sessions">
+                <el-icon><Key /></el-icon><span>会话管理</span>
+              </el-menu-item>
+            </el-menu-item-group>
+          </el-menu>
+        </div>
+
+        <div class="aside-foot">
+          <RouterLink to="/" class="back-portal">← 返回开放平台</RouterLink>
+          <div class="version">Moondrop OIDC · v1.0</div>
+        </div>
       </el-aside>
 
       <el-container>
-        <el-header class="header">
-          <el-space :size="12">
-            <el-tag v-if="admin" :type="admin.role === 'super_admin' ? 'danger' : 'info'" size="small">
-              {{ admin.role === 'super_admin' ? '超级管理员' : '运营' }}
-            </el-tag>
-            <span class="admin-name">{{ admin?.display_name || admin?.username }}</span>
-          </el-space>
-          <el-space :size="4">
-            <el-button text @click="openPassword">修改密码</el-button>
-            <el-button text @click="handleLogout">退出登录</el-button>
-          </el-space>
+        <el-header height="64px" class="header">
+          <el-breadcrumb separator="/" class="crumb">
+            <el-breadcrumb-item>控制台</el-breadcrumb-item>
+            <el-breadcrumb-item>{{ currentTitle }}</el-breadcrumb-item>
+          </el-breadcrumb>
+
+          <div class="header-right">
+            <el-tooltip content="刷新待办数量" placement="bottom">
+              <el-button text circle :icon="Refresh" @click="loadPending" />
+            </el-tooltip>
+            <el-badge :value="pendingTotal" :hidden="!pendingTotal" :max="99">
+              <el-button plain type="primary" @click="goPending">
+                <el-icon style="margin-right: 6px"><Bell /></el-icon>待办审核
+              </el-button>
+            </el-badge>
+            <el-dropdown trigger="click" @command="onCommand">
+              <div class="admin-chip">
+                <el-avatar :size="30" class="admin-avatar">{{ avatarText }}</el-avatar>
+                <div class="admin-meta">
+                  <div class="admin-name">
+                    {{ admin?.display_name || admin?.username || '管理员' }}
+                  </div>
+                  <div class="admin-role">{{ roleText }}</div>
+                </div>
+                <el-icon class="chev"><ArrowDown /></el-icon>
+              </div>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="password">
+                    <el-icon><EditPen /></el-icon>修改密码
+                  </el-dropdown-item>
+                  <el-dropdown-item command="portal">
+                    <el-icon><HomeFilled /></el-icon>开放平台首页
+                  </el-dropdown-item>
+                  <el-dropdown-item divided command="logout">
+                    <el-icon><SwitchButton /></el-icon>退出登录
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </div>
         </el-header>
-        <el-main class="main">
+
+        <el-main class="console-main">
           <router-view />
         </el-main>
       </el-container>
@@ -101,19 +174,96 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
-import { changePassword, fetchMe, getCurrentAdmin, logout, AdminInfo } from '../api';
+import {
+  Odometer,
+  Grid,
+  User,
+  UserFilled,
+  Search,
+  Document,
+  Key,
+  Bell,
+  Refresh,
+  ArrowDown,
+  EditPen,
+  HomeFilled,
+  SwitchButton,
+} from '@element-plus/icons-vue';
+import api, {
+  changePassword,
+  fetchMe,
+  getCurrentAdmin,
+  logout,
+  AdminInfo,
+} from '../api';
 
 const router = useRouter();
 const route = useRoute();
 const admin = ref<AdminInfo | null>(getCurrentAdmin());
 
-onMounted(async () => {
-  admin.value = (await fetchMe()) || getCurrentAdmin();
+const PAGE_TITLES: Record<string, string> = {
+  overview: '总览',
+  developers: '开发者审核',
+  clients: '应用管理',
+  admins: '管理员',
+  'legacy-users': '老库用户',
+  audit: '审计日志',
+  sessions: '会话管理',
+};
+const currentTitle = computed(
+  () => PAGE_TITLES[route.path.split('/').pop() || ''] || '控制台',
+);
+const avatarText = computed(() =>
+  (admin.value?.display_name || admin.value?.username || 'A').slice(0, 1).toUpperCase(),
+);
+const roleText = computed(() =>
+  admin.value?.role === 'super_admin' ? '超级管理员' : '运营管理员',
+);
+
+/** 待办角标：审核动作后子页面会派发 console:pending-changed 通知刷新 */
+const pendingDevelopers = ref(0);
+const pendingClients = ref(0);
+const pendingTotal = computed(() => pendingDevelopers.value + pendingClients.value);
+
+interface OverviewResponse {
+  data: {
+    clients: { pending: string };
+    developers: { pending: string };
+  };
+}
+
+async function loadPending() {
+  try {
+    const { data } = await api.get<OverviewResponse>('/api/admin/overview');
+    pendingDevelopers.value = Number(data?.data?.developers?.pending || 0);
+    pendingClients.value = Number(data?.data?.clients?.pending || 0);
+  } catch {
+    // 统计接口失败不影响控制台使用
+  }
+}
+
+function goPending() {
+  router.push(pendingDevelopers.value > 0 ? '/console/developers' : '/console/clients');
+}
+
+function onCommand(command: string) {
+  if (command === 'password') openPassword();
+  else if (command === 'logout') handleLogout();
+  else if (command === 'portal') router.push('/');
+}
+
+onMounted(() => {
+  fetchMe().then((fresh) => {
+    admin.value = fresh || getCurrentAdmin();
+  });
+  loadPending();
+  window.addEventListener('console:pending-changed', loadPending);
 });
+onUnmounted(() => window.removeEventListener('console:pending-changed', loadPending));
 
 async function handleLogout() {
   try {
@@ -178,52 +328,147 @@ async function submitPassword() {
 </script>
 
 <style scoped>
-.console-page {
+.console-shell {
   height: 100%;
-  background: #f5f7fa;
+  background: var(--canvas);
 }
 .layout {
   height: 100vh;
 }
 .aside {
-  background: #0f172a;
+  background: #0b1a33;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
-.logo {
-  height: 56px;
+.brand {
+  height: 68px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  font-size: 15px;
-  font-weight: 600;
-  color: #e2e8f0;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+  gap: 11px;
+  padding: 0 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
-.logo-badge {
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
+.brand-logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
   background: #fff;
-  padding: 2px;
+  padding: 3px;
   box-sizing: border-box;
   object-fit: contain;
 }
+.brand-name {
+  font-size: 16px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 0.2px;
+}
+.brand-sub {
+  margin-top: 2px;
+  font-size: 11px;
+  color: #7c8db0;
+}
+.menu-scroll {
+  flex: 1;
+  overflow-y: auto;
+}
 .menu {
   border-right: none;
-  background: #0f172a;
+  padding: 8px;
+  background: #0b1a33;
+}
+.console-shell :deep(.el-menu-item-group__title) {
+  padding: 18px 14px 8px;
+  font-size: 11px;
+  letter-spacing: 1.4px;
+  color: #5f7295;
+}
+.console-shell :deep(.menu .el-menu-item) {
+  height: 42px;
+  line-height: 42px;
+  border-radius: 7px;
+  margin-bottom: 3px;
+  font-size: 13px;
+}
+.console-shell :deep(.menu .el-menu-item .el-icon) {
+  font-size: 16px;
+  margin-right: 4px;
+}
+.console-shell :deep(.menu .el-menu-item.is-active) {
+  color: #fff !important;
+  background: linear-gradient(90deg, rgba(11, 87, 208, 0.42), rgba(11, 87, 208, 0.08)) !important;
+  box-shadow: inset 3px 0 0 #4a85e2;
+}
+.menu-count {
+  margin-left: auto;
+  height: 18px;
+  padding: 0 6px;
+  font-size: 11px;
+}
+.aside-foot {
+  flex-shrink: 0;
+  padding: 16px 20px 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+.back-portal {
+  font-size: 12px;
+  color: #93a7c9;
+  text-decoration: none;
+}
+.back-portal:hover {
+  color: #fff;
+}
+.version {
+  margin-top: 8px;
+  font-size: 11px;
+  color: #526381;
 }
 .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   background: #fff;
-  border-bottom: 1px solid #e4e7ed;
+  border-bottom: 1px solid var(--line);
+  padding: 0 26px;
+}
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.admin-chip {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 7px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.admin-chip:hover {
+  background: #f2f7ff;
+}
+.admin-avatar {
+  background: linear-gradient(135deg, #0b57d0, #0a3d91);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
 }
 .admin-name {
-  color: #606266;
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-900);
+  line-height: 1.2;
 }
-.main {
-  overflow: auto;
+.admin-role {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--ink-500);
+}
+.chev {
+  color: var(--ink-300);
+  font-size: 12px;
 }
 </style>

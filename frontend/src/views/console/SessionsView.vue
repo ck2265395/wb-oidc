@@ -1,12 +1,18 @@
 <template>
-  <div>
+  <ConsolePage
+    eyebrow="SESSIONS"
+    title="会话管理"
+    desc="查看并吊销终端用户的 OIDC 登录会话。"
+  >
     <el-alert
       class="mb16"
       type="info"
+      show-icon
       :closable="false"
-      title="终端用户通过 OIDC 登录后的会话（oidc-provider Session）。吊销后用户需要重新登录。"
+      title="终端用户通过 OIDC 登录后的会话（oidc-provider Session），吊销后用户需要重新登录。"
     />
 
+    <el-card shadow="never" class="box-card">
     <el-table :data="sessions" v-loading="loading" stripe>
       <el-table-column label="会话 ID" min-width="260">
         <template #default="{ row }">
@@ -41,12 +47,14 @@
       :page-size="size"
       @change="loadSessions"
     />
-  </div>
+    </el-card>
+  </ConsolePage>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import ConsolePage from '../../components/console/ConsolePage.vue';
 import api from '../../api';
 
 interface SessionRow {

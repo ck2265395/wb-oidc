@@ -20,7 +20,10 @@
             <p>账号信息、开发者资格与审核进度</p>
           </div>
         </div>
-        <el-button link type="primary" @click="$router.push('/profile')">查看完整资料 →</el-button>
+        <div class="panel-actions">
+          <el-button :icon="EditPen" @click="profileEditVisible = true">编辑开发者资料</el-button>
+          <el-button link type="primary" @click="$router.push('/profile')">查看完整资料 →</el-button>
+        </div>
       </div>
 
       <div class="profile-row">
@@ -295,13 +298,21 @@
         title="请立即保存到应用配置，此窗口关闭后无法再次查看。"
       />
     </el-dialog>
+
+    <!-- 编辑开发者资料（工作台与资料页共用） -->
+    <DevProfileEditDialog
+      v-model="profileEditVisible"
+      :info="dev"
+      @saved="onProfileSaved"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Search } from '@element-plus/icons-vue';
+import { Search, EditPen } from '@element-plus/icons-vue';
+import DevProfileEditDialog from './DevProfileEditDialog.vue';
 import devApi, {
   DevAppRow,
   DeveloperInfo,
@@ -316,6 +327,11 @@ const loadingUser = ref(true);
 const apps = ref<DevAppRow[]>([]);
 const dev = ref<DeveloperInfo | null>(getCurrentDeveloper());
 const keyword = ref('');
+const profileEditVisible = ref(false);
+
+function onProfileSaved(updated: DeveloperInfo) {
+  dev.value = updated;
+}
 
 const avatarText = computed(() => (dev.value?.email || '?').slice(0, 1).toUpperCase());
 const accountText = computed(() => (dev.value?.status === 'suspended' ? '已停用' : '正常'));
@@ -591,6 +607,12 @@ async function submitEdit() {
   margin-bottom: 22px;
   padding-bottom: 18px;
   border-bottom: 1px solid #eef2f7;
+}
+.panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 .panel-title {
   display: flex;

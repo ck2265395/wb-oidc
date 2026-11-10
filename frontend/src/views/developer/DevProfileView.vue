@@ -1,8 +1,13 @@
 <template>
   <div class="profile-wrap">
     <div class="profile-head">
-      <h2 class="page-title">账号资料</h2>
-      <p class="page-desc">账号信息、开发者资格与审核状态。</p>
+      <div>
+        <h2 class="page-title">账号资料</h2>
+        <p class="page-desc">账号信息、开发者资格与审核状态。</p>
+      </div>
+      <el-button type="primary" :icon="EditPen" @click="editVisible = true">
+        编辑开发者资料
+      </el-button>
     </div>
 
     <div class="profile-card" v-loading="loading">
@@ -52,22 +57,31 @@
       </el-descriptions>
 
       <p v-if="info && ['none', 'rejected'].includes(info.developer_status)" class="profile-hint">
-        需要创建应用？回到工作台点击「新建应用」，即可补充资料并提交审核。
+        需要创建应用？点击右上角「编辑开发者资料」补充资料并提交审核，或回到工作台点击「新建应用」。
       </p>
       <div class="profile-actions">
-        <el-button type="primary" @click="$router.push('/apps')">{{ actionText }}</el-button>
+        <el-button @click="$router.push('/apps')">{{ actionText }}</el-button>
         <el-button @click="$router.push('/docs')">查看接入文档</el-button>
       </div>
     </div>
+
+    <DevProfileEditDialog v-model="editVisible" :info="info" @saved="onSaved" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { EditPen } from '@element-plus/icons-vue';
+import DevProfileEditDialog from './DevProfileEditDialog.vue';
 import { DeveloperInfo, devFetchMe, getCurrentDeveloper } from '../../api/dev';
 
 const info = ref<DeveloperInfo | null>(getCurrentDeveloper());
 const loading = ref(true);
+const editVisible = ref(false);
+
+function onSaved(updated: DeveloperInfo) {
+  info.value = updated;
+}
 
 onMounted(async () => {
   const fresh = await devFetchMe();
@@ -123,6 +137,10 @@ function fmtTime(s?: string | null): string {
 }
 .profile-head {
   margin-bottom: 24px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
 }
 .page-title {
   margin: 0 0 6px;

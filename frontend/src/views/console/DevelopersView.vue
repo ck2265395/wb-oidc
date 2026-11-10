@@ -1,72 +1,202 @@
 <template>
-  <div>
-    <div class="toolbar">
-      <el-radio-group v-model="statusFilter" @change="loadDevelopers">
-        <el-radio-button value="">全部</el-radio-button>
-        <el-radio-button value="pending">待审核</el-radio-button>
-        <el-radio-button value="approved">已通过</el-radio-button>
-        <el-radio-button value="rejected">已驳回</el-radio-button>
-        <el-radio-button value="none">普通用户</el-radio-button>
-        <el-radio-button value="suspended">已停用</el-radio-button>
-      </el-radio-group>
-      <el-button type="primary" plain @click="loadDevelopers">刷新</el-button>
-      <el-badge v-if="pendingCount > 0" :value="pendingCount" class="pending-badge">
-        <span class="pending-text">个待审核资格申请</span>
-      </el-badge>
-    </div>
+  <ConsolePage
+    eyebrow="QUALIFICATION REVIEW"
+    title="开发者资格审核"
+    desc="审核门户用户提交的开发者资料，通过后该用户才能创建接入应用。"
+  >
+    <template #actions>
+      <el-button :icon="Refresh" @click="loadDevelopers">刷新列表</el-button>
+      <el-button type="primary" @click="showPending">查看待审核（{{ pendingCount }}）</el-button>
+    </template>
 
-    <el-table :data="developers" v-loading="loading" stripe>
-      <el-table-column prop="email" label="邮箱" min-width="180" />
-      <el-table-column prop="company" label="公司/团队" min-width="140">
-        <template #default="{ row }">{{ row.company || '—' }}</template>
-      </el-table-column>
-      <el-table-column prop="contact" label="联系方式" min-width="120">
-        <template #default="{ row }">{{ row.contact || '—' }}</template>
-      </el-table-column>
-      <el-table-column label="开发者资格" width="120">
-        <template #default="{ row }">
-          <el-tooltip
-            :content="row.developer_reject_reason"
-            :disabled="!row.developer_reject_reason"
-            placement="top"
-          >
-            <el-tag :type="qualificationTag(row.developer_status)" size="small">
-              {{ qualificationText(row.developer_status) }}
+    <el-alert
+      v-if="pendingCount > 0"
+      class="review-alert"
+      type="warning"
+      show-icon
+      :closable="false"
+    >
+      <template #title>有 {{ pendingCount }} 位用户正在等待开发者资格审核</template>
+      审核通过后用户即可创建应用；驳回需填写理由，用户可修改资料后重新提交。
+    </el-alert>
+    <el-alert v-else class="review-alert" type="success" show-icon :closable="false">
+      <template #title>暂无待审核的开发者资格申请</template>
+      用户在工作台点击「新建应用」并补充资料后，申请会出现在这里。
+    </el-alert>
+
+    <el-row :gutter="16" class="stat-row">
+      <el-col :span="6">
+        <el-card shadow="never" class="stat-card">
+          <div class="stat-row-inner">
+            <div>
+              <div class="stat-label">门户注册用户</div>
+              <div class="stat-value">{{ allDevelopers.length }}</div>
+              <div class="stat-sub">全部账号</div>
+            </div>
+            <div class="stat-icon"><el-icon><User /></el-icon></div>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card shadow="never" class="stat-card">
+          <div class="stat-row-inner">
+            <div>
+              <div class="stat-label">待审核</div>
+              <div class="stat-value">{{ pendingCount }}</div>
+              <div class="stat-sub">需要尽快处理</div>
+            </div>
+            <div class="stat-icon warn"><el-icon><Bell /></el-icon></div>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card shadow="never" class="stat-card">
+          <div class="stat-row-inner">
+            <div>
+              <div class="stat-label">已认证开发者</div>
+              <div class="stat-value">{{ countBy('approved') }}</div>
+              <div class="stat-sub">可创建应用</div>
+            </div>
+            <div class="stat-icon success"><el-icon><CircleCheck /></el-icon></div>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card shadow="never" class="stat-card">
+          <div class="stat-row-inner">
+            <div>
+              <div class="stat-label">普通用户</div>
+              <div class="stat-value">{{ countBy('none') }}</div>
+              <div class="stat-sub">尚未申请资格</div>
+            </div>
+            <div class="stat-icon"><el-icon><UserFilled /></el-icon></div>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <el-card shadow="never" class="box-card">
+      <div class="cp-toolbar">
+        <el-radio-group v-model="statusFilter">
+          <el-radio-button value="">全部</el-radio-button>
+          <el-radio-button value="pending">待审核</el-radio-button>
+          <el-radio-button value="approved">已通过</el-radio-button>
+          <el-radio-button value="rejected">已驳回</el-radio-button>
+          <el-radio-button value="none">普通用户</el-radio-button>
+          <el-radio-button value="suspended">已停用</el-radio-button>
+        </el-radio-group>
+        <div class="spacer" />
+        <el-input
+          v-model="keyword"
+          placeholder="搜索邮箱 / 公司 / 联系方式"
+          clearable
+          :prefix-icon="Search"
+          style="width: 260px"
+        />
+      </div>
+
+      <el-table :data="filteredDevelopers" v-loading="loading" stripe>
+        <el-table-column label="用户" min-width="200">
+          <template #default="{ row }">
+            <div class="user-cell">
+              <el-avatar :size="30" class="user-avatar">
+                {{ (row.email || '?').slice(0, 1).toUpperCase() }}
+              </el-avatar>
+              <div>
+                <div class="user-email">{{ row.email }}</div>
+                <div class="user-id">ID {{ row.id }}</div>
+              </div>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="company" label="公司 / 团队" min-width="140">
+          <template #default="{ row }">{{ row.company || '—' }}</template>
+        </el-table-column>
+        <el-table-column prop="contact" label="联系方式" min-width="130">
+          <template #default="{ row }">{{ row.contact || '—' }}</template>
+        </el-table-column>
+        <el-table-column label="开发者资格" width="120">
+          <template #default="{ row }">
+            <el-tooltip
+              :content="row.developer_reject_reason"
+              :disabled="!row.developer_reject_reason"
+              placement="top"
+            >
+              <el-tag :type="qualificationTag(row.developer_status)" size="small" effect="light">
+                {{ qualificationText(row.developer_status) }}
+              </el-tag>
+            </el-tooltip>
+          </template>
+        </el-table-column>
+        <el-table-column label="账号" width="90">
+          <template #default="{ row }">
+            <el-tag :type="row.status === 'active' ? 'success' : 'danger'" size="small" effect="plain">
+              {{ row.status === 'active' ? '正常' : '停用' }}
             </el-tag>
-          </el-tooltip>
-        </template>
-      </el-table-column>
-      <el-table-column label="账号" width="90">
-        <template #default="{ row }">
-          <el-tag :type="row.status === 'active' ? 'success' : 'danger'" size="small" effect="plain">
-            {{ row.status === 'active' ? '正常' : '停用' }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="申请时间" width="160">
-        <template #default="{ row }">
-          {{ row.developer_applied_at ? fmtTime(row.developer_applied_at) : '—' }}
-        </template>
-      </el-table-column>
-      <el-table-column label="注册时间" width="160">
-        <template #default="{ row }">{{ fmtTime(row.created_at) }}</template>
-      </el-table-column>
-      <el-table-column label="操作" width="200" fixed="right">
-        <template #default="{ row }">
-          <template v-if="row.developer_status === 'pending'">
-            <el-button size="small" type="success" @click="approve(row)">通过</el-button>
-            <el-button size="small" type="danger" @click="openReason(row, 'reject')">驳回</el-button>
           </template>
-          <template v-else-if="row.status === 'suspended'">
-            <el-button size="small" type="primary" @click="restore(row)">恢复账号</el-button>
+        </el-table-column>
+        <el-table-column label="申请时间" width="165">
+          <template #default="{ row }">
+            {{ row.developer_applied_at ? fmtTime(row.developer_applied_at) : '—' }}
           </template>
-          <template v-else-if="row.developer_status === 'approved'">
-            <el-button size="small" type="warning" @click="openReason(row, 'suspend')">停用账号</el-button>
+        </el-table-column>
+        <el-table-column label="操作" width="230" fixed="right">
+          <template #default="{ row }">
+            <el-button size="small" link type="primary" @click="openDetail(row)">资料</el-button>
+            <template v-if="row.developer_status === 'pending'">
+              <el-button size="small" type="success" @click="approve(row)">通过</el-button>
+              <el-button size="small" type="danger" @click="openReason(row, 'reject')">驳回</el-button>
+            </template>
+            <template v-else-if="row.status === 'suspended'">
+              <el-button size="small" type="primary" @click="restore(row)">恢复账号</el-button>
+            </template>
+            <template v-else-if="row.developer_status === 'approved'">
+              <el-button size="small" type="warning" plain @click="openReason(row, 'suspend')">
+                停用账号
+              </el-button>
+            </template>
           </template>
-          <span v-else class="muted">—</span>
+        </el-table-column>
+        <template #empty>
+          <el-empty description="没有符合条件的用户" />
         </template>
-      </el-table-column>
-    </el-table>
+      </el-table>
+    </el-card>
+
+    <!-- 资料详情 -->
+    <el-dialog v-model="detailVisible" title="用户资料详情" width="560px">
+      <el-descriptions v-if="detailRow" :column="1" border>
+        <el-descriptions-item label="邮箱">{{ detailRow.email }}</el-descriptions-item>
+        <el-descriptions-item label="公司 / 团队">{{ detailRow.company || '未填写' }}</el-descriptions-item>
+        <el-descriptions-item label="联系方式">{{ detailRow.contact || '未填写' }}</el-descriptions-item>
+        <el-descriptions-item label="开发者资格">
+          {{ qualificationText(detailRow.developer_status) }}
+        </el-descriptions-item>
+        <el-descriptions-item label="账号状态">
+          {{ detailRow.status === 'active' ? '正常' : '停用' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="提交时间">
+          {{ detailRow.developer_applied_at ? fmtTime(detailRow.developer_applied_at) : '—' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="驳回原因">
+          {{ detailRow.developer_reject_reason || '—' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="注册时间">{{ fmtTime(detailRow.created_at) }}</el-descriptions-item>
+        <el-descriptions-item label="最近登录">
+          {{ detailRow.last_login_at ? fmtTime(detailRow.last_login_at) : '从未登录' }}
+        </el-descriptions-item>
+      </el-descriptions>
+      <template #footer>
+        <el-button @click="detailVisible = false">关闭</el-button>
+        <el-button
+          v-if="detailRow?.developer_status === 'pending'"
+          type="primary"
+          @click="approve(detailRow!)"
+        >
+          通过审核
+        </el-button>
+      </template>
+    </el-dialog>
 
     <!-- 驳回 / 停用理由 -->
     <el-dialog v-model="reasonVisible" :title="reasonTitle" width="440px">
@@ -81,12 +211,16 @@
         <el-button type="danger" :loading="submitting" @click="submitReason">确认</el-button>
       </template>
     </el-dialog>
-  </div>
+  </ConsolePage>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import {
+  Refresh, Search, User, UserFilled, Bell, CircleCheck,
+} from '@element-plus/icons-vue';
+import ConsolePage from '../../components/console/ConsolePage.vue';
 import api from '../../api';
 
 interface DeveloperRow {
@@ -104,49 +238,76 @@ interface DeveloperRow {
 }
 
 const loading = ref(false);
-const developers = ref<DeveloperRow[]>([]);
-const statusFilter = ref('');
+const allDevelopers = ref<DeveloperRow[]>([]);
+const statusFilter = ref('pending');
+const keyword = ref('');
 const reasonVisible = ref(false);
+const detailVisible = ref(false);
+const detailRow = ref<DeveloperRow | null>(null);
 const reason = ref('');
 const submitting = ref(false);
 const reasonTarget = ref<DeveloperRow | null>(null);
 const reasonMode = ref<'reject' | 'suspend'>('reject');
 
+const filteredDevelopers = computed(() => {
+  const kw = keyword.value.trim().toLowerCase();
+  return allDevelopers.value.filter((d) => {
+    const matchStatus =
+      !statusFilter.value ||
+      (statusFilter.value === 'suspended'
+        ? d.status === 'suspended'
+        : d.developer_status === statusFilter.value);
+    const matchKeyword =
+      !kw ||
+      [d.email, d.company, d.contact].some((v) => (v || '').toLowerCase().includes(kw));
+    return matchStatus && matchKeyword;
+  });
+});
 const pendingCount = computed(
-  () => developers.value.filter((d) => d.developer_status === 'pending').length,
+  () => allDevelopers.value.filter((d) => d.developer_status === 'pending').length,
 );
+function countBy(status: string): number {
+  return allDevelopers.value.filter((d) => d.developer_status === status).length;
+}
 const reasonTitle = computed(() =>
   reasonMode.value === 'reject' ? '驳回开发者资格申请' : '停用账号',
 );
 
 onMounted(loadDevelopers);
 
+function showPending() {
+  statusFilter.value = 'pending';
+  keyword.value = '';
+}
+
 async function loadDevelopers() {
   loading.value = true;
   try {
-    const { data } = await api.get<{ data: DeveloperRow[] }>('/api/admin/developers', {
-      params: statusFilter.value ? { status: statusFilter.value } : {},
-    });
-    developers.value = data.data;
+    const { data } = await api.get<{ data: DeveloperRow[] }>('/api/admin/developers');
+    allDevelopers.value = data.data;
   } finally {
     loading.value = false;
   }
 }
 
+/** 审核动作后通知外壳刷新待办角标 */
+function notifyPendingChanged() {
+  window.dispatchEvent(new Event('console:pending-changed'));
+}
+
 function qualificationTag(s: string) {
-  return (
-    { approved: 'success', pending: 'warning', rejected: 'danger', none: 'info' }[s] || 'info'
-  );
+  return { approved: 'success', pending: 'warning', rejected: 'danger', none: 'info' }[s] || 'info';
 }
-
 function qualificationText(s: string) {
-  return (
-    { approved: '已认证', pending: '待审核', rejected: '已驳回', none: '未申请' }[s] || s
-  );
+  return { approved: '已认证', pending: '待审核', rejected: '已驳回', none: '未申请' }[s] || s;
 }
-
 function fmtTime(s: string): string {
   return new Date(s).toLocaleString('zh-CN', { hour12: false });
+}
+
+function openDetail(row: DeveloperRow) {
+  detailRow.value = row;
+  detailVisible.value = true;
 }
 
 async function approve(row: DeveloperRow) {
@@ -160,7 +321,9 @@ async function approve(row: DeveloperRow) {
     return;
   }
   await api.patch(`/api/admin/developers/${row.id}/review`, { action: 'approve' });
-  ElMessage.success('已通过');
+  detailVisible.value = false;
+  ElMessage.success('已通过，该用户现在可以创建应用');
+  notifyPendingChanged();
   await loadDevelopers();
 }
 
@@ -202,6 +365,7 @@ async function submitReason() {
     }
     reasonVisible.value = false;
     ElMessage.success('已处理');
+    notifyPendingChanged();
     await loadDevelopers();
   } catch (e: any) {
     ElMessage.error(e?.response?.data?.message || '操作失败');
@@ -212,21 +376,37 @@ async function submitReason() {
 </script>
 
 <style scoped>
-.toolbar {
-  margin-bottom: 16px;
+.review-alert {
+  margin-bottom: 18px;
+}
+.stat-row {
+  margin-bottom: 18px;
+}
+.stat-row-inner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.user-cell {
   display: flex;
   align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
+  gap: 10px;
 }
-.pending-badge {
-  margin-left: auto;
+.user-avatar {
+  background: linear-gradient(135deg, #0b57d0, #0a3d91);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  flex-shrink: 0;
 }
-.pending-text {
-  font-size: 12px;
-  color: #6b7280;
+.user-email {
+  font-weight: 600;
+  color: var(--ink-900);
 }
-.muted {
-  color: #9ca3af;
+.user-id {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--ink-300);
 }
 </style>

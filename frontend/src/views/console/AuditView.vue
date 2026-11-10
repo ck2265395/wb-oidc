@@ -1,6 +1,11 @@
 <template>
-  <div>
-    <div class="toolbar">
+  <ConsolePage
+    eyebrow="AUDIT LOG"
+    title="审计日志"
+    desc="记录全部管理端操作，支持按动作、操作人筛选与分页查询。"
+  >
+    <el-card shadow="never" class="box-card">
+      <div class="cp-toolbar">
       <el-input
         v-model="filters.action"
         placeholder="按动作筛选，如 client.review"
@@ -58,11 +63,13 @@
       :page-sizes="[20, 50, 100]"
       @change="loadLogs"
     />
-  </div>
+    </el-card>
+  </ConsolePage>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import ConsolePage from '../../components/console/ConsolePage.vue';
 import api from '../../api';
 
 interface LogRow {

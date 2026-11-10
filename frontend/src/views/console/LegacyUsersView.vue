@@ -1,13 +1,19 @@
 <template>
-  <div>
+  <ConsolePage
+    eyebrow="LEGACY USERS"
+    title="老库用户"
+    desc="直连老系统数据库的只读查询，用于核对存量用户是否可接入。"
+  >
     <el-alert
       class="mb16"
       type="info"
+      show-icon
       :closable="false"
-      title="直连老系统数据库的只读查询，密码等敏感字段已脱敏。用于核对存量用户是否可接入。"
+      title="只读查询，密码等敏感字段已脱敏"
     />
 
-    <div class="toolbar">
+    <el-card shadow="never" class="box-card">
+      <div class="cp-toolbar">
       <el-input
         v-model="keyword"
         placeholder="用户名 / 邮箱 / 手机号"
@@ -44,11 +50,13 @@
       :page-size="size"
       @change="search"
     />
-  </div>
+    </el-card>
+  </ConsolePage>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import ConsolePage from '../../components/console/ConsolePage.vue';
 import api from '../../api';
 
 const loading = ref(false);

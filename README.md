@@ -3,7 +3,7 @@
 前后端分离的 OIDC Provider，让第三方应用接入你的存量注册用户登录。
 
 - **后端**：NestJS + `oidc-provider`（OpenID 官方认证库）+ PostgreSQL（授权数据）+ 只读连老系统 PostgreSQL 校验存量用户
-- **前端**：Vue3 + element-plus — 统一登录页、授权确认页、开发者控制台、PKCE 回调演示页
+- **前端**：Vue3 + element-plus — 开放平台门户（根路径直达）、登录后工作台、Element Plus 管理后台（分组菜单 / 待办角标 / 统计卡）、统一登录页、授权确认页、PKCE 回调演示页
 
 ## 目录结构
 
@@ -26,7 +26,8 @@ wb-oidc/
 │   └── scripts/
 │       ├── seed.mjs             # 建表 + 注册示例应用 + 首个超管
 │       ├── verify-legacy.mjs    # 探测老库密码算法
-│       └── smoke-all.mjs        # 全链路冒烟（46 项断言）
+│       ├── smoke-all.mjs        # 全链路冒烟（46 项断言）
+│       └── smoke-profile.mjs    # 资料编辑链路冒烟（14 项断言）
 ├── frontend/
 │   └── src/
 │       ├── views/
@@ -113,9 +114,9 @@ cd frontend && npm install && npm run build
 ### A. 开发者门户自助接入
 
 1. 打开 `/developer/login` → **注册（只需邮箱 + 密码）→ 立即可以登录**，此时是普通用户（`developer_status=none`），可浏览首页与接入文档
-2. 登录后进入 `/apps` **工作台**，两个模块常显：**用户资料与状态**（账号状态、开发者资格、资料字段、审核进度）+ **我的应用列表**（普通用户为空列表）
-3. 点击「新建应用」时才触发资格检测：非开发者弹出**补充开发者信息**表单，填写**公司 / 团队 + 联系方式** → 提交后 `developer_status=pending`；审核中提示进度，被驳回可改资料重提
-4. 管理员在控制台「用户与开发者」审核资格：通过 → `approved`；驳回（填理由）→ `rejected`
+2. 登录后进入 `/apps` **工作台**，两个模块常显：**用户资料与状态**（账号状态、开发者资格、资料字段、审核进度，右上角可「编辑开发者资料」）+ **我的应用列表**（普通用户为空列表）
+3. 资料维护有两条入口：工作台模块一或 `/profile` 账号资料页的「**编辑开发者资料**」——可「仅保存资料」（不改变资格）或「保存并提交审核」；点击「新建应用」时也会触发资格检测并弹出**补充开发者信息**表单。填写**公司 / 团队 + 联系方式**提交后 `developer_status=pending`；审核中可继续改资料，被驳回可改资料重提
+4. 管理员在控制台「**开发者审核**」页审核资格（左侧菜单有待审数量角标、顶栏有待办入口）：通过 → `approved`；驳回（填理由）→ `rejected`
 5. **资格 `approved` 后点「新建应用」才会打开创建表单**：提交名称 / 回调 / scopes → 应用 `pending`，此时无法发起授权
 6. 管理员在「应用管理」审核通过 → 应用 `approved`，可正常走 OIDC；修改**回调地址或 scope** → 自动回到 `pending` 重新审核（名称改动不触发）
 
@@ -174,6 +175,7 @@ npm run reset-admin -- admin      # 忘记密码时重置，凭据写入 backend
 npm run smoke:admin -- http://127.0.0.1:3000    # 鉴权链路冒烟（9 项断言）
 npm run smoke:password -- http://127.0.0.1:3000 # 改密码链路冒烟（9 项断言，测完自动恢复原密码）
 npm run smoke:all -- http://127.0.0.1:3200      # 全链路冒烟：开发者门户 + 审核 + OIDC + 审计/会话/老库（46 项）
+npm run smoke:profile -- http://127.0.0.1:3200  # 资料编辑链路冒烟：仅保存 / 审核中改 / 已认证改（14 项）
 ```
 
 管理员接口（需 `super_admin`）：
@@ -215,12 +217,13 @@ npm run smoke:all -- http://127.0.0.1:3200      # 全链路冒烟：开发者门
 | POST | `/api/developer/auth/register` | 注册 `{ email, password }` → 立即 `active` 可登录，资格 `none` |
 | POST | `/api/developer/auth/login` | 登录（仅 `active` 账号，独立 cookie） |
 | GET | `/api/developer/auth/me` | 当前用户（含账号状态 / 开发者资格 / 驳回原因 / 申请时间） |
-| POST | `/api/developer/apply` | 补充开发者资料 `{ company, contact }` → `pending`（仅 `none` / `rejected` 可提交） |
+| PATCH | `/api/developer/profile` | 编辑开发者资料 `{ company, contact }`，**不改变资格状态**（任何 `active` 用户可用） |
+| POST | `/api/developer/apply` | 补充开发者资料并提交审核 `{ company, contact }` → `pending`（仅 `none` / `rejected` 可提交） |
 | GET | `/api/developer/apps` | 我的应用列表（不校验资格，普通用户返回空列表） |
 | POST | `/api/developer/apps` | 提交应用申请 → `pending`（**需资格 `approved`**，否则 403） |
 | PATCH | `/api/developer/apps/:clientId` | 编辑（改回调/scope 自动回 `pending`） |
 
-全链路冒烟（46 项断言，自带临时超管并在结束后清理数据）：
+全链路冒烟（`smoke:all` 46 项 + `smoke:profile` 14 项，自带临时超管 / 临时用户并在结束后清理数据）：
 
 ```bash
 cd backend && npm run build

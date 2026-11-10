@@ -1,10 +1,15 @@
 <template>
-  <div>
-    <div class="toolbar">
-      <el-button type="primary" @click="openCreate">+ 新建管理员</el-button>
-      <el-button @click="loadAdmins">刷新</el-button>
-    </div>
+  <ConsolePage
+    eyebrow="ADMINISTRATORS"
+    title="管理员"
+    desc="管理后台账号、角色与启用状态，仅超级管理员可操作。"
+  >
+    <template #actions>
+      <el-button :icon="Refresh" @click="loadAdmins">刷新</el-button>
+      <el-button type="primary" :icon="Plus" @click="openCreate">新建管理员</el-button>
+    </template>
 
+    <el-card shadow="never" class="box-card">
     <el-table :data="admins" v-loading="loading" stripe>
       <el-table-column prop="username" label="用户名" min-width="120" />
       <el-table-column prop="display_name" label="显示名" min-width="120" />
@@ -34,6 +39,7 @@
         </template>
       </el-table-column>
     </el-table>
+    </el-card>
 
     <!-- 新建管理员 -->
     <el-dialog v-model="createVisible" title="新建管理员" width="440px">
@@ -115,13 +121,15 @@
         <el-button type="primary" :loading="resetting" @click="submitReset">确认重置</el-button>
       </template>
     </el-dialog>
-  </div>
+  </ConsolePage>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
+import { Refresh, Plus } from '@element-plus/icons-vue';
+import ConsolePage from '../../components/console/ConsolePage.vue';
 import {
   AdminInfo,
   createAdmin,
