@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { LegacyUserService } from './legacy/legacy-user.service';
 import { AppConfig } from '../config/env';
+import { clearRateLimit, hitRateLimit } from '../common/rate-limiter';
 
 /**
  * OIDC interaction 路由（挂载在 provider.callback 之前）：
@@ -38,6 +39,16 @@ export function interactionRouter(
   router.post('/interaction/:uid/login', async (req, res, next) => {
     try {
       const { username, password, remember } = req.body || {};
+      // 登录限流：同账号+IP 窗口期内限次，防撞库（阈值见 RATE_LIMIT_LOGIN_MAX）
+      const rl = config.rateLimit;
+      const loginKey = `oidclogin:${String(username || '').trim()}:${req.ip}`;
+      if (!hitRateLimit(loginKey, rl.loginMax, rl.loginWindowMs)) {
+        res.status(429).json({
+          error: 'too_many_attempts',
+          message: '登录尝试过于频繁，请稍后再试',
+        });
+        return;
+      }
       const user = await legacyUserService.verifyLogin(
         String(username || ''),
         String(password || ''),
@@ -49,6 +60,7 @@ export function interactionRouter(
         });
         return;
       }
+      clearRateLimit(loginKey);
       const result: any = {
         login: {
           accountId: user.id,

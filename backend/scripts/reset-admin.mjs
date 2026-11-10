@@ -5,31 +5,33 @@
  * 用法：node scripts/reset-admin.mjs <用户名>
  */
 import 'dotenv/config';
+import 'reflect-metadata';
 import { randomBytes } from 'crypto';
 import { writeFileSync } from 'fs';
 import bcrypt from 'bcryptjs';
-import { getPool, closePool, waitReady } from '../dist/db/pool.js';
+import { closeDataSource, getDataSource, waitReady } from '../dist/db/data-source.js';
 
 const username = (process.argv[2] || 'admin').trim();
 
 async function main() {
   await waitReady();
-  const pool = getPool();
-  const { rows } = await pool.query('SELECT id FROM oidc_admin WHERE username = $1', [username]);
-  if (!rows.length) {
+  const ds = getDataSource();
+  const admins = ds.getRepository('OidcAdmin');
+  const sessions = ds.getRepository('OidcAdminSession');
+  const row = await admins.findOne({ where: { username }, select: { id: true, username: true } });
+  if (!row) {
     console.error(`[reset] 管理员不存在: ${username}`);
     process.exit(1);
   }
   const password = randomBytes(12).toString('base64url');
-  const hash = bcrypt.hashSync(password, 10);
-  await pool.query(
-    'UPDATE oidc_admin SET password_hash = $2, enabled = TRUE, updated_at = NOW() WHERE id = $1',
-    [rows[0].id, hash],
+  await admins.update(
+    { id: row.id },
+    { passwordHash: bcrypt.hashSync(password, 10), enabled: true },
   );
   // 吊销该账号所有刷新令牌，强制重新登录
-  await pool.query(
-    'UPDATE oidc_admin_session SET revoked_at = NOW() WHERE admin_id = $1 AND revoked_at IS NULL',
-    [rows[0].id],
+  await sessions.update(
+    { adminId: row.id, revokedAt: null },
+    { revokedAt: new Date() },
   );
   const file = '.admin-credentials.txt';
   writeFileSync(
@@ -39,7 +41,7 @@ async function main() {
   );
   console.log(`[reset] 已重置 ${username} 的密码`);
   console.log(`[reset] 凭据已写入: backend/${file}（请查看后删除该文件）`);
-  await closePool();
+  await closeDataSource();
 }
 
 main().catch((err) => {

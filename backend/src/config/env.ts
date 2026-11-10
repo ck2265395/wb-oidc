@@ -47,6 +47,8 @@ export interface AppConfig {
     secureCookie: boolean;
   };
   pg: { host: string; port: number; user: string; password: string; database: string };
+  /** 登录限流（admin/developer/interaction 共用阈值，按 账号+IP 计） */
+  rateLimit: { loginMax: number; loginWindowMs: number };
   legacy: LegacyConfig;
 }
 
@@ -112,6 +114,11 @@ export function loadConfig(): AppConfig {
       user: str('PG_USER', 'postgres'),
       password: str('PG_PASSWORD', 'postgres'),
       database: str('PG_DATABASE', 'wb_oidc'),
+    },
+    rateLimit: {
+      // 默认 15 分钟 10 次；本地开发/冒烟环境可在 .env 调高
+      loginMax: num('RATE_LIMIT_LOGIN_MAX', 10),
+      loginWindowMs: num('RATE_LIMIT_LOGIN_WINDOW_MS', 15 * 60_000),
     },
     legacy: {
       host: str('LEGACY_DB_HOST', 'localhost'),

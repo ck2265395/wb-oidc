@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   HttpCode,
+  HttpException,
   Post,
   Req,
   Res,
@@ -11,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { loadConfig } from '../config/env';
+import { clearRateLimit, hitRateLimit } from '../common/rate-limiter';
 import { DeveloperAuthService } from './developer-auth.service';
 import { DeveloperGuard, currentDeveloper } from './developer.guard';
 
@@ -34,11 +36,17 @@ export class DeveloperAuthController {
     @Body() body: { email?: string; password?: string },
     @Req() req: Request,
   ) {
+    // 注册限流：同 IP 30 分钟最多 5 次，防批量注册
+    const regKey = `devreg:${req.ip}`;
+    if (!hitRateLimit(regKey, 5, 30 * 60_000)) {
+      throw new HttpException('注册过于频繁，请 30 分钟后再试', 429);
+    }
     await this.auth.register(
       String(body?.email || ''),
       String(body?.password || ''),
       req.ip,
     );
+    clearRateLimit(regKey);
     return {
       ok: true,
       message: '注册成功，现在即可登录。若需创建应用，登录后再申请开发者资格。',
@@ -52,12 +60,19 @@ export class DeveloperAuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
+    // 登录限流：同邮箱+IP 窗口期内限次，防撞库（阈值见 RATE_LIMIT_LOGIN_MAX）
+    const rl = loadConfig().rateLimit;
+    const loginKey = `devlogin:${String(body?.email || '').trim().toLowerCase()}:${req.ip}`;
+    if (!hitRateLimit(loginKey, rl.loginMax, rl.loginWindowMs)) {
+      throw new HttpException('登录尝试过于频繁，请稍后再试', 429);
+    }
     const result = await this.auth.login(
       String(body?.email || ''),
       String(body?.password || ''),
       req.ip,
       req.headers['user-agent'],
     );
+    clearRateLimit(loginKey);
     this.setRefreshCookie(res, result.refreshToken, result.refreshTtlSeconds);
     return {
       access_token: result.accessToken,
@@ -94,23 +109,7 @@ export class DeveloperAuthController {
   @UseGuards(DeveloperGuard)
   async me(@Req() req: Request) {
     const dev = currentDeveloper(req);
-    const row = await this.auth.me(dev.id);
-    return {
-      data: {
-        id: row.id,
-        email: row.email,
-        company: row.company,
-        contact: row.contact,
-        status: row.status,
-        developer_status: row.developer_status,
-        developer_type: row.developer_type,
-        developer_reject_reason: row.developer_reject_reason,
-        developer_applied_at: row.developer_applied_at,
-        reject_reason: row.reject_reason,
-        last_login_at: row.last_login_at,
-        created_at: row.created_at,
-      },
-    };
+    return { data: await this.auth.me(dev.id) };
   }
 
   private cookieOptions() {

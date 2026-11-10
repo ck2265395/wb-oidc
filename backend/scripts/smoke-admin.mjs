@@ -9,7 +9,7 @@
 import 'dotenv/config';
 import { randomBytes } from 'crypto';
 import bcrypt from 'bcryptjs';
-import { getPool, closePool, waitReady } from '../dist/db/pool.js';
+import { closeDataSource, getDataSource, waitReady } from '../dist/db/data-source.js';
 
 const BASE = (process.argv[2] || 'http://127.0.0.1:3100').replace(/\/$/, '');
 const username = `smoke_${randomBytes(4).toString('hex')}`;
@@ -29,8 +29,8 @@ function pickCookie(res) {
 
 async function main() {
   await waitReady();
-  const pool = getPool();
-  const { rows } = await pool.query(
+  const ds = getDataSource();
+  const rows = await ds.query(
     `INSERT INTO oidc_admin (username, password_hash, display_name, role)
      VALUES ($1,$2,'smoke test','super_admin') RETURNING id`,
     [username, bcrypt.hashSync(password, 10)],
@@ -111,8 +111,8 @@ async function main() {
     });
     check('登出后 refresh 失效返回 401', afterLogout.status === 401, `got ${afterLogout.status}`);
   } finally {
-    await pool.query('DELETE FROM oidc_admin WHERE id = $1', [adminId]);
-    await closePool();
+    await ds.query('DELETE FROM oidc_admin WHERE id = $1', [adminId]);
+    await closeDataSource();
   }
 
   console.log(failures === 0 ? '\n全部通过' : `\n${failures} 项失败`);

@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   HttpCode,
+  HttpException,
   Post,
   Req,
   Res,
@@ -11,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { loadConfig } from '../config/env';
+import { clearRateLimit, hitRateLimit } from '../common/rate-limiter';
 import { AdminAuthService } from './admin-auth.service';
 import { AdminAuthGuard } from './admin-auth.guard';
 import { CurrentAdmin } from './current-admin.decorator';
@@ -45,12 +47,19 @@ export class AdminAuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
+    // 登录限流：同用户名+IP 窗口期内限次，防撞库（阈值见 RATE_LIMIT_LOGIN_MAX）
+    const cfg = loadConfig().rateLimit;
+    const loginKey = `adminlogin:${String(body?.username || '').trim()}:${req.ip}`;
+    if (!hitRateLimit(loginKey, cfg.loginMax, cfg.loginWindowMs)) {
+      throw new HttpException('登录尝试过于频繁，请稍后再试', 429);
+    }
     const result = await this.auth.login(
       String(body?.username || '').trim(),
       String(body?.password || ''),
       req.ip,
       req.headers['user-agent'],
     );
+    clearRateLimit(loginKey);
     this.setRefreshCookie(res, result.refreshToken, result.refreshTtlSeconds);
     return {
       access_token: result.accessToken,

@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
-import { getPool } from '../db/pool';
+import { DataSource, In } from 'typeorm';
+import { OidcClient, OidcDeveloper } from '../db/entities';
 import { encryptSecret, decryptSecret } from '../common/secret-cipher';
 
 export interface ClientRow {
@@ -44,6 +45,36 @@ export interface CreateClientDto {
   post_logout_redirect_uris?: string[];
 }
 
+/** 实体 → 对外 snake_case 行（API 响应结构保持不变，secret 由调用方按需剥离） */
+export function toClientRow(e: OidcClient, developerEmail?: string | null): ClientRow {
+  return {
+    id: Number(e.id),
+    client_id: e.clientId,
+    client_secret: e.clientSecret,
+    client_name: e.clientName,
+    application_type: e.applicationType,
+    token_endpoint_auth_method: e.tokenEndpointAuthMethod,
+    redirect_uris: e.redirectUris,
+    post_logout_redirect_uris: e.postLogoutRedirectUris,
+    grant_types: e.grantTypes,
+    response_types: e.responseTypes,
+    scope: e.scope,
+    enabled: e.enabled,
+    developer_id: e.developerId,
+    developer_email: developerEmail ?? null,
+    status: e.status,
+    reject_reason: e.rejectReason,
+    category: e.category,
+    logo: e.logo,
+    description: e.description,
+    website: e.website,
+    icp_number: e.icpNumber,
+    tags: e.tags,
+    created_at: e.createdAt,
+    updated_at: e.updatedAt,
+  };
+}
+
 /**
  * 第三方应用（OIDC Client）管理。
  * client_secret 落库前用 AES-256-GCM 加密（见 common/secret-cipher.ts），
@@ -51,41 +82,44 @@ export interface CreateClientDto {
  */
 @Injectable()
 export class ClientsService {
+  constructor(@Inject(DataSource) private readonly ds: DataSource) {}
+
+  private get repo() {
+    return this.ds.getRepository(OidcClient);
+  }
+
   async list(): Promise<ClientRow[]> {
-    const pool = getPool();
-    const { rows } = await pool.query<ClientRow>(
-      `SELECT c.*, d.email AS developer_email
-         FROM oidc_clients c
-         LEFT JOIN oidc_developer d ON d.id = c.developer_id
-        ORDER BY c.created_at DESC`,
-    );
-    return rows;
+    const rows = await this.repo.find({ order: { createdAt: 'DESC' } });
+    // 补申请人邮箱：admin 列表页需要展示归属开发者
+    const devIds = [...new Set(rows.map((r) => r.developerId).filter((v): v is number => v != null))];
+    const devs = devIds.length
+      ? await this.ds
+          .getRepository(OidcDeveloper)
+          .find({ where: { id: In(devIds) }, select: { id: true, email: true } })
+      : [];
+    const emailMap = new Map(devs.map((d) => [Number(d.id), d.email]));
+    return rows.map((e) => toClientRow(e, emailMap.get(Number(e.developerId)) ?? null));
   }
 
   async listByDeveloper(developerId: number): Promise<ClientRow[]> {
-    const pool = getPool();
-    const { rows } = await pool.query<ClientRow>(
-      'SELECT * FROM oidc_clients WHERE developer_id = $1 ORDER BY created_at DESC',
-      [developerId],
-    );
-    return rows;
+    const rows = await this.repo.find({
+      where: { developerId },
+      order: { createdAt: 'DESC' },
+    });
+    return rows.map((e) => toClientRow(e));
   }
 
   async listPending(): Promise<ClientRow[]> {
-    const pool = getPool();
-    const { rows } = await pool.query<ClientRow>(
-      "SELECT * FROM oidc_clients WHERE status = 'pending' ORDER BY created_at ASC",
-    );
-    return rows;
+    const rows = await this.repo.find({
+      where: { status: 'pending' },
+      order: { createdAt: 'ASC' },
+    });
+    return rows.map((e) => toClientRow(e));
   }
 
   async get(clientId: string): Promise<ClientRow | null> {
-    const pool = getPool();
-    const { rows } = await pool.query<ClientRow>(
-      'SELECT * FROM oidc_clients WHERE client_id = $1 LIMIT 1',
-      [clientId],
-    );
-    return rows[0] || null;
+    const e = await this.repo.findOne({ where: { clientId } });
+    return e ? toClientRow(e) : null;
   }
 
   async create(
@@ -127,11 +161,11 @@ export class ClientsService {
 
     // 企业开发者创建应用必须填写 ICP 备案号（参照 QQ 开放平台）
     if (opts?.developerId) {
-      const { rows: devRows } = await getPool().query<{ developer_type?: string }>(
-        'SELECT developer_type FROM oidc_developer WHERE id = $1 LIMIT 1',
-        [opts.developerId],
-      );
-      if (devRows[0]?.developer_type === 'enterprise' && !icpNumber) {
+      const dev = await this.ds.getRepository(OidcDeveloper).findOne({
+        where: { id: opts.developerId },
+        select: { id: true, developerType: true },
+      });
+      if (dev?.developerType === 'enterprise' && !icpNumber) {
         throw new BadRequestException('企业开发者创建应用必须填写 ICP 备案号');
       }
     }
@@ -143,47 +177,34 @@ export class ClientsService {
     const scope = dto.scope || 'openid profile email';
     const status = opts?.status || 'approved';
 
-    const pool = getPool();
-    const { rows } = await pool.query<ClientRow>(
-      `INSERT INTO oidc_clients
-        (client_id, client_secret, client_name, application_type,
-         token_endpoint_auth_method, redirect_uris, post_logout_redirect_uris,
-         grant_types, response_types, scope, developer_id, status,
-         category, logo, description, website, icp_number, tags)
-       VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8::jsonb,$9::jsonb,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb)
-       RETURNING *`,
-      [
-        clientId,
-        encryptSecret(secret),
-        dto.client_name,
-        applicationType,
-        authMethod,
-        JSON.stringify(dto.redirect_uris),
-        JSON.stringify(dto.post_logout_redirect_uris || []),
-        JSON.stringify(['authorization_code', 'refresh_token']),
-        JSON.stringify(['code']),
-        scope,
-        opts?.developerId ?? null,
-        status,
-        category,
-        logo,
-        description,
-        website,
-        icpNumber,
-        JSON.stringify(tags),
-      ],
-    );
-    return { client: rows[0], secret };
+    const entity = await this.repo.save(this.repo.create({
+      clientId,
+      clientSecret: encryptSecret(secret),
+      clientName: dto.client_name,
+      applicationType,
+      tokenEndpointAuthMethod: authMethod,
+      redirectUris: dto.redirect_uris,
+      postLogoutRedirectUris: dto.post_logout_redirect_uris || [],
+      grantTypes: ['authorization_code', 'refresh_token'],
+      responseTypes: ['code'],
+      scope,
+      developerId: opts?.developerId ?? null,
+      status,
+      category,
+      logo,
+      description,
+      website,
+      icpNumber,
+      tags,
+    }));
+    return { client: toClientRow(entity), secret };
   }
 
   async toggleEnabled(clientId: string, enabled: boolean): Promise<ClientRow> {
-    const pool = getPool();
-    const { rows } = await pool.query<ClientRow>(
-      'UPDATE oidc_clients SET enabled = $2, updated_at = NOW() WHERE client_id = $1 RETURNING *',
-      [clientId, enabled],
-    );
-    if (!rows.length) throw new NotFoundException(`client ${clientId} 不存在`);
-    return rows[0];
+    await this.repo.update({ clientId }, { enabled });
+    const e = await this.repo.findOne({ where: { clientId } });
+    if (!e) throw new NotFoundException(`client ${clientId} 不存在`);
+    return toClientRow(e);
   }
 
   /** 通用编辑：应用名称 / 回调地址 / scope / 展示元数据（revertToPending：改动回调/scope 后回待审核） */
@@ -202,17 +223,16 @@ export class ClientsService {
     },
     opts?: { revertToPending?: boolean; developerId?: number },
   ): Promise<ClientRow> {
-    const sets: string[] = [];
-    const params: unknown[] = [];
-    let idx = 1;
+    const current = await this.repo.findOne({ where: { clientId } });
+    if (!current) throw new NotFoundException(`client ${clientId} 不存在`);
 
+    const patch: Partial<OidcClient> = {};
     if (dto.client_name !== undefined) {
       const name = String(dto.client_name).trim();
       if (!name || name.length > 64) {
         throw new BadRequestException('client_name 需为 1-64 字符');
       }
-      sets.push(`client_name = $${idx++}`);
-      params.push(name);
+      patch.clientName = name;
     }
     if (dto.redirect_uris !== undefined) {
       const uris = dto.redirect_uris;
@@ -224,8 +244,7 @@ export class ClientsService {
           throw new BadRequestException(`回调地址不合法: ${uri}`);
         }
       }
-      sets.push(`redirect_uris = $${idx++}::jsonb`);
-      params.push(JSON.stringify(uris));
+      patch.redirectUris = uris;
     }
     if (dto.scope !== undefined) {
       const scopes = String(dto.scope)
@@ -234,97 +253,76 @@ export class ClientsService {
       if (!scopes.includes('openid')) {
         throw new BadRequestException('scope 必须包含 openid');
       }
-      sets.push(`scope = $${idx++}`);
-      params.push(scopes.join(' '));
+      patch.scope = scopes.join(' ');
     }
     if (dto.category !== undefined) {
       const cat = ['web_app', 'mobile_app', 'mini_program'].includes(dto.category as string)
         ? dto.category
         : 'web_app';
-      sets.push(`category = $${idx++}`);
-      params.push(cat);
+      patch.category = cat;
       // 改类目同步调整安全形态（网站应用需要 secret，移动/小程序走 PKCE）
-      sets.push(
-        `application_type = $${idx++}`,
-        `token_endpoint_auth_method = $${idx++}`,
-      );
       const isWeb = cat === 'web_app';
-      params.push(isWeb ? 'web' : 'spa', isWeb ? 'client_secret_basic' : 'none');
-
+      patch.applicationType = isWeb ? 'web' : 'spa';
+      patch.tokenEndpointAuthMethod = isWeb ? 'client_secret_basic' : 'none';
       if (isWeb) {
         // 从 PKCE 类目改成网站应用：原来没有 secret，补发一个，否则认证必然失败
-        const { rows: cur } = await getPool().query<{ client_secret: string }>(
-          'SELECT client_secret FROM oidc_clients WHERE client_id = $1 LIMIT 1',
-          [clientId],
-        );
-        if (!cur[0]?.client_secret) {
-          sets.push(`client_secret = $${idx++}`);
-          params.push(encryptSecret(randomBytes(24).toString('hex')));
+        if (!current.clientSecret) {
+          patch.clientSecret = encryptSecret(randomBytes(24).toString('hex'));
         }
       } else {
         // 改成 PKCE 类目：清掉 secret，免得库里留一个永远不会用到的凭据
-        sets.push(`client_secret = $${idx++}`);
-        params.push('');
+        patch.clientSecret = '';
       }
     }
     if (dto.description !== undefined) {
-      sets.push(`description = $${idx++}`);
-      params.push(String(dto.description).slice(0, 200));
+      patch.description = String(dto.description).slice(0, 200);
     }
     if (dto.website !== undefined) {
       const site = String(dto.website).trim();
       if (site && !/^https?:\/\/.+/i.test(site)) {
         throw new BadRequestException('官网域名不合法，需以 http(s):// 开头');
       }
-      sets.push(`website = $${idx++}`);
-      params.push(site);
+      patch.website = site;
     }
     if (dto.icp_number !== undefined) {
-      sets.push(`icp_number = $${idx++}`);
-      params.push(String(dto.icp_number).trim());
+      patch.icpNumber = String(dto.icp_number).trim();
     }
     if (dto.logo !== undefined) {
       const logo = String(dto.logo).trim();
       if (logo.length > 700000) {
         throw new BadRequestException('应用图标过大，请上传 100×100 以内的图片');
       }
-      sets.push(`logo = $${idx++}`);
-      params.push(logo);
+      patch.logo = logo;
     }
     if (dto.tags !== undefined) {
-      const tags = Array.isArray(dto.tags)
+      patch.tags = Array.isArray(dto.tags)
         ? dto.tags.map((t) => String(t).trim()).filter(Boolean).slice(0, 20)
         : [];
-      sets.push(`tags = $${idx++}::jsonb`);
-      params.push(JSON.stringify(tags));
     }
-    if (!sets.length) {
+    if (!Object.keys(patch).length) {
       throw new BadRequestException('没有可更新的字段');
     }
 
     // 企业开发者清空 ICP 备案号时拒绝（创建与编辑都需保留）
     if (opts?.developerId && dto.icp_number !== undefined && dto.icp_number.trim() === '') {
-      const { rows: devRows } = await getPool().query<{ developer_type?: string }>(
-        'SELECT developer_type FROM oidc_developer WHERE id = $1 LIMIT 1',
-        [opts.developerId],
-      );
-      if (devRows[0]?.developer_type === 'enterprise') {
+      const dev = await this.ds.getRepository(OidcDeveloper).findOne({
+        where: { id: opts.developerId },
+        select: { id: true, developerType: true },
+      });
+      if (dev?.developerType === 'enterprise') {
         throw new BadRequestException('企业开发者应用必须保留 ICP 备案号');
       }
     }
 
-    sets.push('updated_at = NOW()');
     // 审核流策略：改了回调或 scope → 回到待审核（应用名称改动不影响安全面，不触发）
     if (opts?.revertToPending && (dto.redirect_uris !== undefined || dto.scope !== undefined)) {
-      sets.push("status = 'pending'");
-      sets.push("reject_reason = ''");
+      patch.status = 'pending';
+      patch.rejectReason = '';
     }
-    const { rows } = await getPool().query<ClientRow>(
-      `UPDATE oidc_clients SET ${sets.join(', ')} WHERE client_id = $${idx} RETURNING *`,
-      [...params, clientId],
-    );
-    if (!rows.length) throw new NotFoundException(`client ${clientId} 不存在`);
-    return rows[0];
+    await this.repo.update({ clientId }, patch);
+    const updated = await this.repo.findOne({ where: { clientId } });
+    if (!updated) throw new NotFoundException(`client ${clientId} 不存在`);
+    return toClientRow(updated);
   }
 
   /** 审核操作：approve / reject / suspend */
@@ -333,19 +331,14 @@ export class ClientsService {
     status: 'approved' | 'rejected' | 'suspended' | 'pending',
     reason = '',
   ): Promise<ClientRow> {
-    const { rows } = await getPool().query<ClientRow>(
-      `UPDATE oidc_clients
-          SET status = $2, reject_reason = $3, updated_at = NOW()
-        WHERE client_id = $1 RETURNING *`,
-      [clientId, status, reason],
-    );
-    if (!rows.length) throw new NotFoundException(`client ${clientId} 不存在`);
-    return rows[0];
+    await this.repo.update({ clientId }, { status, rejectReason: reason });
+    const e = await this.repo.findOne({ where: { clientId } });
+    if (!e) throw new NotFoundException(`client ${clientId} 不存在`);
+    return toClientRow(e);
   }
 
   /** 开发者归属校验：不是自己的应用直接按不存在处理（不暴露存在性） */
   assertOwned(row: ClientRow, developerId: number): void {
-    // developer_id 是 BIGINT，pg 驱动会返回字符串，必须按数值比较
     const owner = row.developer_id === null || row.developer_id === undefined
       ? null
       : Number(row.developer_id);
@@ -356,14 +349,10 @@ export class ClientsService {
 
   async rotateSecret(clientId: string): Promise<{ client: ClientRow; secret: string }> {
     const secret = randomBytes(24).toString('hex');
-    const { rows } = await getPool().query<ClientRow>(
-      `UPDATE oidc_clients
-          SET client_secret = $2, updated_at = NOW()
-        WHERE client_id = $1 RETURNING *`,
-      [clientId, encryptSecret(secret)],
-    );
-    if (!rows.length) throw new NotFoundException(`client ${clientId} 不存在`);
-    return { client: rows[0], secret };
+    await this.repo.update({ clientId }, { clientSecret: encryptSecret(secret) });
+    const e = await this.repo.findOne({ where: { clientId } });
+    if (!e) throw new NotFoundException(`client ${clientId} 不存在`);
+    return { client: toClientRow(e), secret };
   }
 
   /**
@@ -378,9 +367,8 @@ export class ClientsService {
   }
 
   async remove(clientId: string): Promise<void> {
-    const pool = getPool();
-    const result = await pool.query('DELETE FROM oidc_clients WHERE client_id = $1', [clientId]);
-    if (!result.rowCount) throw new NotFoundException(`client ${clientId} 不存在`);
+    const result = await this.repo.delete({ clientId });
+    if (!result.affected) throw new NotFoundException(`client ${clientId} 不存在`);
   }
 
   /** adapter 用的 OIDC 客户端配置 */

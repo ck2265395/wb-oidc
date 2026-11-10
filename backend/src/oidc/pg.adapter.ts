@@ -1,4 +1,6 @@
-import { getPool } from '../db/pool';
+import { In, LessThan } from 'typeorm';
+import { getDataSource } from '../db/data-source';
+import { OidcClient, OidcProviderState } from '../db/entities';
 import { decryptSecret } from '../common/secret-cipher';
 
 /**
@@ -6,6 +8,7 @@ import { decryptSecret } from '../common/secret-cipher';
  * 所有协议运行时数据（Session / Interaction / AuthorizationCode /
  * AccessToken / RefreshToken / Grant ...）统一落在 oidc_provider_state 表。
  * Client 模型特殊处理：从 oidc_clients 业务表读取。
+ * 注意：oidc-provider 直接 new 这个类（不走 Nest DI），因此用 getDataSource() 模块级获取。
  */
 export class PgAdapter {
   model: string;
@@ -14,38 +17,31 @@ export class PgAdapter {
     this.model = model;
   }
 
+  private get repo() {
+    return getDataSource().getRepository(OidcProviderState);
+  }
+
   async upsert(id: string, payload: Record<string, any>, expiresIn: number): Promise<void> {
-    const pool = getPool();
     const expiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
-    const uid = payload.uid || null;
-    const grantId = payload.grantId || null;
-    const userCode = payload.userCode || null;
-    await pool.query(
-      `INSERT INTO oidc_provider_state (id, model, data, expires_at, uid, grant_id, user_code)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       ON CONFLICT (model, id) DO UPDATE SET
-         data = EXCLUDED.data,
-         expires_at = EXCLUDED.expires_at,
-         uid = EXCLUDED.uid,
-         grant_id = EXCLUDED.grant_id,
-         user_code = EXCLUDED.user_code`,
-      [id, this.model, JSON.stringify(payload), expiresAt, uid, grantId, userCode],
-    );
+    await this.repo.save({
+      id,
+      model: this.model,
+      data: payload,
+      expiresAt,
+      uid: payload.uid || null,
+      grantId: payload.grantId || null,
+      userCode: payload.userCode || null,
+      consumedAt: payload.consumed ? new Date() : null,
+    });
   }
 
   async find(id: string): Promise<Record<string, any> | undefined> {
     // Client 模型不在 state 表，从业务表 oidc_clients 加载
     if (this.model === 'Client') return this.findClient(id);
-    const pool = getPool();
-    const { rows } = await pool.query(
-      'SELECT data, expires_at FROM oidc_provider_state WHERE model = $1 AND id = $2',
-      [this.model, id],
-    );
-    if (!rows.length) return undefined;
-    if (rows[0].expires_at && new Date(rows[0].expires_at).getTime() < Date.now()) {
-      return undefined;
-    }
-    return rows[0].data;
+    const row = await this.repo.findOne({ where: { model: this.model, id } });
+    if (!row) return undefined;
+    if (row.expiresAt && row.expiresAt.getTime() < Date.now()) return undefined;
+    return row.data;
   }
 
   /**
@@ -54,88 +50,73 @@ export class PgAdapter {
    * pending / rejected / suspended 一律按不存在处理（invalid_client）。
    */
   private async findClient(clientId: string): Promise<Record<string, any> | undefined> {
-    const pool = getPool();
-    const { rows } = await pool.query(
-      'SELECT * FROM oidc_clients WHERE client_id = $1 LIMIT 1',
-      [clientId],
-    );
-    if (!rows.length) return undefined;
-    const row = rows[0];
-    if (row.status && row.status !== 'approved') return undefined;
-    if (row.enabled === false) return undefined;
+    const e = await getDataSource()
+      .getRepository(OidcClient)
+      .findOne({ where: { clientId } });
+    if (!e) return undefined;
+    if (e.status !== 'approved') return undefined;
+    if (!e.enabled) return undefined;
     return {
-      client_id: row.client_id,
-      client_secret: decryptSecret(row.client_secret),
-      client_name: row.client_name,
-      application_type: row.application_type,
-      token_endpoint_auth_method: row.token_endpoint_auth_method,
-      redirect_uris: row.redirect_uris,
-      post_logout_redirect_uris: row.post_logout_redirect_uris,
-      grant_types: row.grant_types,
-      response_types: row.response_types,
-      scope: row.scope,
+      client_id: e.clientId,
+      client_secret: decryptSecret(e.clientSecret),
+      client_name: e.clientName,
+      application_type: e.applicationType,
+      token_endpoint_auth_method: e.tokenEndpointAuthMethod,
+      redirect_uris: e.redirectUris,
+      post_logout_redirect_uris: e.postLogoutRedirectUris,
+      grant_types: e.grantTypes,
+      response_types: e.responseTypes,
+      scope: e.scope,
     };
   }
 
   async findByUid(uid: string): Promise<Record<string, any> | undefined> {
-    return this.findBy('uid', uid, ['Session', 'Interaction']);
+    return this.findBy(['Session', 'Interaction'], { uid });
   }
 
   async findByUserCode(userCode: string): Promise<Record<string, any> | undefined> {
-    return this.findBy('user_code', userCode, ['DeviceCode']);
+    return this.findBy(['DeviceCode'], { userCode });
   }
 
   async findByGrantId(grantId: string): Promise<Record<string, any>[] | undefined> {
-    const pool = getPool();
-    const { rows } = await pool.query(
-      'SELECT data, expires_at FROM oidc_provider_state WHERE grant_id = $1',
-      [grantId],
-    );
+    const rows = await this.repo.find({ where: { grantId } });
     if (!rows.length) return undefined;
     const now = Date.now();
     return rows
-      .filter((r: any) => !r.expires_at || new Date(r.expires_at).getTime() >= now)
-      .map((r: any) => r.data);
+      .filter((r) => !r.expiresAt || r.expiresAt.getTime() >= now)
+      .map((r) => r.data);
   }
 
   async consume(id: string): Promise<void> {
-    const pool = getPool();
-    await pool.query(
-      `UPDATE oidc_provider_state
-       SET data = jsonb_set(data, '{consumed}', 'true'::jsonb), consumed_at = NOW()
-       WHERE model = $1 AND id = $2`,
-      [this.model, id],
-    );
+    await this.repo
+      .createQueryBuilder()
+      .update(OidcProviderState)
+      .set({
+        data: () => `jsonb_set(data, '{consumed}', 'true'::jsonb)`,
+        consumedAt: () => 'NOW()',
+      })
+      .where('model = :model AND id = :id', { model: this.model, id })
+      .execute();
   }
 
   async destroy(id: string): Promise<void> {
-    const pool = getPool();
-    await pool.query('DELETE FROM oidc_provider_state WHERE model = $1 AND id = $2', [
-      this.model,
-      id,
-    ]);
+    await this.repo.delete({ model: this.model, id });
   }
 
   async revokeByGrantId(grantId: string): Promise<void> {
-    const pool = getPool();
-    await pool.query('DELETE FROM oidc_provider_state WHERE grant_id = $1', [grantId]);
+    await this.repo.delete({ grantId });
   }
 
   private async findBy(
-    column: string,
-    value: string,
     models: string[],
+    cond: { uid?: string; userCode?: string },
   ): Promise<Record<string, any> | undefined> {
-    const pool = getPool();
-    const { rows } = await pool.query(
-      `SELECT data, expires_at FROM oidc_provider_state
-       WHERE model = ANY($1) AND ${column} = $2`,
-      [models, value],
-    );
-    if (!rows.length) return undefined;
-    if (rows[0].expires_at && new Date(rows[0].expires_at).getTime() < Date.now()) {
-      return undefined;
-    }
-    return rows[0].data;
+    const row = await this.repo.findOne({
+      where: { model: In(models), ...cond },
+      order: { expiresAt: 'DESC' },
+    });
+    if (!row) return undefined;
+    if (row.expiresAt && row.expiresAt.getTime() < Date.now()) return undefined;
+    return row.data;
   }
 }

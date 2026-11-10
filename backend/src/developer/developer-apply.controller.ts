@@ -2,7 +2,6 @@ import { Body, Controller, HttpCode, Patch, Post, Req, UseGuards } from '@nestjs
 import { Request } from 'express';
 import { DeveloperAuthService } from './developer-auth.service';
 import { DeveloperGuard, currentDeveloper } from './developer.guard';
-import { toDeveloperView } from './developer.types';
 
 /**
  * 开发者资料与资格申请。
@@ -28,7 +27,7 @@ export class DeveloperApplyController {
       body?.developer_type === 'enterprise' ? 'enterprise' : 'personal',
     );
     return {
-      data: toDeveloperView(row),
+      data: row,
       message: '资料已提交，等待管理员审核',
     };
   }
@@ -48,7 +47,7 @@ export class DeveloperApplyController {
       body?.developer_type === 'enterprise' ? 'enterprise' : 'personal',
     );
     return {
-      data: toDeveloperView(row),
+      data: row,
       message: '资料已保存',
     };
   }

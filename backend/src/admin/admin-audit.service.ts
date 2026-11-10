@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
-import { getPool } from '../db/pool';
+import { Inject, Injectable } from '@nestjs/common';
+import { DataSource } from 'typeorm';
+import { OidcAdminLog } from '../db/entities';
 import { AdminPrincipal } from './admin.types';
 
 /**
@@ -8,6 +9,8 @@ import { AdminPrincipal } from './admin.types';
  */
 @Injectable()
 export class AdminAuditService {
+  constructor(@Inject(DataSource) private readonly ds: DataSource) {}
+
   async log(
     admin: AdminPrincipal | null,
     action: string,
@@ -16,18 +19,16 @@ export class AdminAuditService {
     ip?: string,
   ): Promise<void> {
     try {
-      await getPool().query(
-        `INSERT INTO oidc_admin_log (admin_id, username, action, target, detail, ip)
-         VALUES ($1,$2,$3,$4,$5::jsonb,$6)`,
-        [
-          admin?.id ?? null,
-          admin?.username ?? null,
-          action,
-          target ?? null,
-          detail ? JSON.stringify(detail) : null,
-          ip ?? null,
-        ],
-      );
+      const repo = this.ds.getRepository(OidcAdminLog);
+      const row = repo.create({
+        adminId: admin ? admin.id : null,
+        username: admin?.username ?? null,
+        action,
+        target: target ?? null,
+        detail: detail ?? null,
+        ip: ip ?? null,
+      });
+      await repo.insert(row);
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error('[audit] 写入失败:', (err as Error).message);
@@ -46,17 +47,16 @@ export class AdminAuditService {
     ip?: string,
   ): Promise<void> {
     try {
-      await getPool().query(
-        `INSERT INTO oidc_admin_log (admin_id, username, action, target, detail, ip)
-         VALUES (NULL,$1,$2,$3,$4::jsonb,$5)`,
-        [
-          developer ? `developer:${developer.email}` : 'developer:anonymous',
-          action,
-          target ?? null,
-          detail ? JSON.stringify({ ...detail, developer_id: developer?.id ?? null }) : null,
-          ip ?? null,
-        ],
-      );
+      const repo = this.ds.getRepository(OidcAdminLog);
+      const row = repo.create({
+        adminId: null,
+        username: developer ? `developer:${developer.email}` : 'developer:anonymous',
+        action,
+        target: target ?? null,
+        detail: { ...(detail ?? {}), developer_id: developer?.id ?? null },
+        ip: ip ?? null,
+      });
+      await repo.insert(row);
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error('[audit] 开发者审计写入失败:', (err as Error).message);
@@ -64,10 +64,10 @@ export class AdminAuditService {
   }
 
   async list(limit = 100): Promise<Array<Record<string, unknown>>> {
-    const { rows } = await getPool().query(
-      'SELECT * FROM oidc_admin_log ORDER BY created_at DESC LIMIT $1',
-      [Math.min(Math.max(limit, 1), 500)],
-    );
-    return rows;
+    const rows = await this.ds.getRepository(OidcAdminLog).find({
+      order: { createdAt: 'DESC' },
+      take: Math.min(Math.max(limit, 1), 500),
+    });
+    return rows as unknown as Array<Record<string, unknown>>;
   }
 }

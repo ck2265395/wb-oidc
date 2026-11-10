@@ -7,7 +7,11 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
     "start:dev": "npm run build && node dist/main.js",
-    "seed": "node scripts/seed.mjs",
+    "seed": "npm run build && node scripts/seed.mjs",
+    "db:reinit": "npm run build && node scripts/db-reinit.mjs",
+    "migration:run": "npm run build && typeorm migration:run -d dist/db/cli-datasource.js",
+    "migration:revert": "npm run build && typeorm migration:revert -d dist/db/cli-datasource.js",
+    "migration:show": "npm run build && typeorm migration:show -d dist/db/cli-datasource.js",
     "reset-admin": "node scripts/reset-admin.mjs",
     "smoke:admin": "node scripts/smoke-admin.mjs",
     "smoke:password": "node scripts/smoke-change-password.mjs",
@@ -28,7 +32,8 @@
     "oidc-provider": "^8.0.0",
     "pg": "^8.12.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "typeorm": "^0.3.31"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

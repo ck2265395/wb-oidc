@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import 'reflect-metadata';
-import { existsSync, mkdirSync, appendFileSync } from 'fs';
+import { createWriteStream, existsSync, mkdirSync } from 'fs';
 import * as path from 'path';
 import * as express from 'express';
 import { NestFactory } from '@nestjs/core';
@@ -9,8 +9,9 @@ import { LegacyUserService } from './oidc/legacy/legacy-user.service';
 import { createProvider } from './oidc/provider.factory';
 import { interactionRouter } from './oidc/interaction.routes';
 import { loadConfig } from './config/env';
-import { closePool, waitReady } from './db/pool';
+import { closeDataSource, waitReady } from './db/data-source';
 import { migratePlaintextSecrets } from './common/secret-migration';
+import { startStateCleanup } from './common/state-cleanup';
 
 const PROVIDER_PREFIXES = [
   '/auth',
@@ -29,7 +30,7 @@ const isProviderPath = (path: string): boolean =>
 async function bootstrap(): Promise<void> {
   const config = loadConfig();
 
-  // 先建表再接请求，避免首个请求与 ensureSchema 竞态
+  // 先跑迁移（建表）再接请求，避免首个请求与建表竞态
   await waitReady();
   // 存量明文 client_secret 一次性加密（幂等，主密钥未持久化时自动跳过）
   await migratePlaintextSecrets();
@@ -63,14 +64,15 @@ async function bootstrap(): Promise<void> {
     /* 已存在或无权限时跳过文件日志 */
   }
   const logFile = path.join(logDir, 'access.log');
+  // 追加写流：异步写盘，避免高并发下 appendFileSync 阻塞事件循环
+  const logStream = createWriteStream(logFile, { flags: 'a' });
+  logStream.on('error', () => {
+    /* 文件日志失败不影响请求 */
+  });
   const appendLog = (line: string) => {
     // eslint-disable-next-line no-console
     console.log(line);
-    try {
-      appendFileSync(logFile, line + '\n');
-    } catch {
-      /* 文件日志失败不影响请求 */
-    }
+    logStream.write(line + '\n');
   };
   server.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
     const start = Date.now();
@@ -115,6 +117,8 @@ async function bootstrap(): Promise<void> {
   });
 
   await app.listen(config.port);
+  // 定时清理过期协议状态（Session/Grant/Token 等，防止 state 表无限膨胀）
+  startStateCleanup();
   // eslint-disable-next-line no-console
   console.log(`[boot] OIDC Provider ready: ${config.issuer}`);
   // eslint-disable-next-line no-console
@@ -127,7 +131,7 @@ async function bootstrap(): Promise<void> {
     // eslint-disable-next-line no-console
     console.log(`[shutdown] 收到 ${signal}，正在关闭...`);
     await app.close();
-    await closePool();
+    await closeDataSource();
     process.exit(0);
   };
   process.on('SIGINT', () => void shutdown('SIGINT'));

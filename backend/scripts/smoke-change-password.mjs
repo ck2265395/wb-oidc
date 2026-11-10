@@ -9,7 +9,7 @@
  */
 import 'dotenv/config';
 import { readFileSync } from 'fs';
-import { getPool, closePool, waitReady } from '../dist/db/pool.js';
+import { closeDataSource, getDataSource, waitReady } from '../dist/db/data-source.js';
 
 const BASE = (process.argv[2] || 'http://127.0.0.1:3100').replace(/\/$/, '');
 const CRED_FILE = '.admin-credentials.txt';
@@ -54,10 +54,10 @@ async function post(path, body, token) {
 
 async function main() {
   await waitReady();
-  const pool = getPool();
+  const ds = getDataSource();
   const { username, password: oldPassword } = readCredentials();
 
-  const { rows } = await pool.query(
+  const rows = await ds.query(
     'SELECT id, password_hash FROM oidc_admin WHERE username = $1',
     [username],
   );
@@ -120,11 +120,11 @@ async function main() {
   check('新会话访问 me 200', me.status === 200, `got ${me.status}`);
 
   // 恢复原密码哈希 + 吊销测试期间产生的会话
-  await pool.query(
+  await ds.query(
     'UPDATE oidc_admin SET password_hash = $2, updated_at = NOW() WHERE id = $1',
     [id, originalHash],
   );
-  await pool.query(
+  await ds.query(
     'UPDATE oidc_admin_session SET revoked_at = NOW() WHERE admin_id = $1 AND revoked_at IS NULL',
     [id],
   );
@@ -134,14 +134,14 @@ async function main() {
   check('原密码已恢复，可登录 200', loginRestored.status === 200, `got ${loginRestored.status}`);
 
   console.log(`\n[smoke] 结果：${pass} PASS / ${fail} FAIL`);
-  await closePool();
+  await closeDataSource();
   process.exit(fail === 0 ? 0 : 1);
 }
 
 main().catch(async (err) => {
   console.error('[smoke] 异常:', err.message);
   try {
-    await closePool();
+    await closeDataSource();
   } catch {
     /* ignore */
   }

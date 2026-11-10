@@ -1,12 +1,13 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import * as jwt from 'jsonwebtoken';
-import { getPool } from '../db/pool';
+import { DataSource, IsNull } from 'typeorm';
 import { loadConfig } from '../config/env';
+import { OidcAdmin, OidcAdminSession } from '../db/entities';
 import { AdminAuditService } from './admin-audit.service';
 import { assertPasswordStrength } from './admin-password.util';
-import { AdminPrincipal, AdminRow, AdminRole, toAdminView, AdminView } from './admin.types';
+import { AdminPrincipal, AdminRole, toAdminView, AdminView } from './admin.types';
 
 export interface LoginResult {
   accessToken: string;
@@ -35,14 +36,21 @@ export class AdminAuthService {
   /** 账号不存在时用于等时比对的占位哈希（启动时生成一次，避免长度非法抛错） */
   private readonly dummyHash = bcrypt.hashSync('dummy-password-for-timing', 10);
 
-  constructor(private readonly audit: AdminAuditService) {}
+  constructor(
+    @Inject(DataSource) private readonly ds: DataSource,
+    private readonly audit: AdminAuditService,
+  ) {}
+
+  private get adminRepo() {
+    return this.ds.getRepository(OidcAdmin);
+  }
+
+  private get sessionRepo() {
+    return this.ds.getRepository(OidcAdminSession);
+  }
 
   private get cfg() {
     return loadConfig().adminAuth;
-  }
-
-  private get pool() {
-    return getPool();
   }
 
   async login(
@@ -54,13 +62,9 @@ export class AdminAuthService {
     if (!username || !password) {
       throw new UnauthorizedException('用户名和密码不能为空');
     }
-    const { rows } = await this.pool.query<AdminRow>(
-      'SELECT * FROM oidc_admin WHERE username = $1 LIMIT 1',
-      [username],
-    );
-    const row = rows[0];
+    const row = await this.adminRepo.findOne({ where: { username } });
     // 用户不存在也走一次 bcrypt 比对，避免时序差异暴露账号是否存在
-    const hash = row?.password_hash ?? this.dummyHash;
+    const hash = row?.passwordHash ?? this.dummyHash;
     const ok = bcrypt.compareSync(password, hash);
     if (!row || !ok) {
       await this.audit.log(null, 'admin.login.failed', username, { reason: 'bad_credentials' }, ip);
@@ -68,7 +72,7 @@ export class AdminAuthService {
     }
     if (!row.enabled) {
       await this.audit.log(
-        { id: row.id, username: row.username, displayName: row.display_name, role: row.role },
+        { id: Number(row.id), username: row.username, displayName: row.displayName, role: row.role },
         'admin.login.failed',
         row.username,
         { reason: 'disabled' },
@@ -77,12 +81,12 @@ export class AdminAuthService {
       throw new UnauthorizedException('该管理员账号已被停用');
     }
 
-    await this.pool.query('UPDATE oidc_admin SET last_login_at = NOW() WHERE id = $1', [row.id]);
+    await this.adminRepo.update({ id: row.id }, { lastLoginAt: new Date() });
 
     const admin: AdminPrincipal = {
-      id: row.id,
+      id: Number(row.id),
       username: row.username,
-      displayName: row.display_name,
+      displayName: row.displayName,
       role: row.role,
     };
     const accessToken = this.signAccess(admin);
@@ -102,17 +106,17 @@ export class AdminAuthService {
   async refresh(rawToken: string, ip?: string, userAgent?: string): Promise<RefreshResult> {
     if (!rawToken) throw new UnauthorizedException('缺少刷新令牌');
     const hash = this.hashToken(rawToken);
-    const { rows } = await this.pool.query<
-      AdminRow & { session_id: number; expires_at: Date; revoked_at: Date | null }
-    >(
-      `SELECT a.*, s.id AS session_id, s.expires_at, s.revoked_at
-         FROM oidc_admin_session s
-         JOIN oidc_admin a ON a.id = s.admin_id
-        WHERE s.token_hash = $1 LIMIT 1`,
-      [hash],
-    );
-    const row = rows[0];
-    if (!row || row.revoked_at || new Date(row.expires_at).getTime() < Date.now()) {
+    const session = await this.sessionRepo.findOne({
+      where: { tokenHash: hash },
+      relations: { admin: true },
+    });
+    const row = session?.admin;
+    if (
+      !session ||
+      !row ||
+      session.revokedAt ||
+      session.expiresAt.getTime() < Date.now()
+    ) {
       throw new UnauthorizedException('刷新令牌无效或已过期，请重新登录');
     }
     if (!row.enabled) {
@@ -120,15 +124,13 @@ export class AdminAuthService {
     }
 
     const admin: AdminPrincipal = {
-      id: row.id,
+      id: Number(row.id),
       username: row.username,
-      displayName: row.display_name,
+      displayName: row.displayName,
       role: row.role,
     };
     // 轮换：旧令牌立即作废，签发新的
-    await this.pool.query('UPDATE oidc_admin_session SET revoked_at = NOW() WHERE id = $1', [
-      row.session_id,
-    ]);
+    await this.sessionRepo.update({ id: session.id }, { revokedAt: new Date() });
     const newRefresh = await this.createSession(row.id, ip, userAgent);
     await this.audit.log(admin, 'admin.token.refresh', row.username, undefined, ip);
 
@@ -143,9 +145,9 @@ export class AdminAuthService {
 
   async logout(rawToken?: string, admin?: AdminPrincipal, ip?: string): Promise<void> {
     if (rawToken) {
-      await this.pool.query(
-        'UPDATE oidc_admin_session SET revoked_at = NOW() WHERE token_hash = $1 AND revoked_at IS NULL',
-        [this.hashToken(rawToken)],
+      await this.sessionRepo.update(
+        { tokenHash: this.hashToken(rawToken), revokedAt: IsNull() },
+        { revokedAt: new Date() },
       );
     }
     await this.audit.log(admin ?? null, 'admin.logout', admin?.username, undefined, ip);
@@ -161,14 +163,10 @@ export class AdminAuthService {
     newPassword: string,
     ip?: string,
   ): Promise<void> {
-    const { rows } = await this.pool.query<AdminRow>(
-      'SELECT * FROM oidc_admin WHERE id = $1 LIMIT 1',
-      [admin.id],
-    );
-    const row = rows[0];
+    const row = await this.adminRepo.findOne({ where: { id: admin.id } });
     if (!row) throw new UnauthorizedException('管理员不存在');
 
-    if (!bcrypt.compareSync(oldPassword || '', row.password_hash)) {
+    if (!bcrypt.compareSync(oldPassword || '', row.passwordHash)) {
       await this.audit.log(
         admin,
         'admin.password.change_failed',
@@ -180,25 +178,20 @@ export class AdminAuthService {
     }
 
     assertPasswordStrength(newPassword, row.username);
-    if (bcrypt.compareSync(newPassword, row.password_hash)) {
+    if (bcrypt.compareSync(newPassword, row.passwordHash)) {
       throw new BadRequestException('新密码不能与原密码相同');
     }
 
     const hash = await bcrypt.hash(newPassword, 10);
-    await this.pool.query(
-      'UPDATE oidc_admin SET password_hash = $2, updated_at = NOW() WHERE id = $1',
-      [admin.id, hash],
-    );
-    await this.revokeAllSessions(admin.id);
+    // 改密 + 吊销全部会话必须原子完成，避免窗口期内旧会话仍可用
+    await this.ds.transaction(async (em) => {
+      await em.getRepository(OidcAdmin).update({ id: row.id }, { passwordHash: hash });
+      await em.getRepository(OidcAdminSession).update(
+        { adminId: row.id, revokedAt: IsNull() },
+        { revokedAt: new Date() },
+      );
+    });
     await this.audit.log(admin, 'admin.password.change', admin.username, undefined, ip);
-  }
-
-  /** 吊销某管理员的全部刷新令牌（改密码、重置密码后调用） */
-  private async revokeAllSessions(adminId: number): Promise<void> {
-    await this.pool.query(
-      'UPDATE oidc_admin_session SET revoked_at = NOW() WHERE admin_id = $1 AND revoked_at IS NULL',
-      [adminId],
-    );
   }
 
   verifyAccess(token: string): AdminPrincipal {
@@ -223,12 +216,9 @@ export class AdminAuthService {
   }
 
   async me(adminId: number): Promise<AdminView> {
-    const { rows } = await this.pool.query<AdminRow>(
-      'SELECT * FROM oidc_admin WHERE id = $1 LIMIT 1',
-      [adminId],
-    );
-    if (!rows[0]) throw new UnauthorizedException('管理员不存在');
-    return toAdminView(rows[0]);
+    const row = await this.adminRepo.findOne({ where: { id: adminId } });
+    if (!row) throw new UnauthorizedException('管理员不存在');
+    return toAdminView(row);
   }
 
   private signAccess(admin: AdminPrincipal): string {
@@ -252,11 +242,13 @@ export class AdminAuthService {
   ): Promise<string> {
     const raw = crypto.randomBytes(32).toString('base64url');
     const expiresAt = new Date(Date.now() + this.cfg.refreshTtlDays * 86400_000);
-    await this.pool.query(
-      `INSERT INTO oidc_admin_session (admin_id, token_hash, expires_at, ip, user_agent)
-       VALUES ($1,$2,$3,$4,$5)`,
-      [adminId, this.hashToken(raw), expiresAt, ip ?? null, userAgent?.slice(0, 300) ?? null],
-    );
+    await this.sessionRepo.insert({
+      adminId,
+      tokenHash: this.hashToken(raw),
+      expiresAt,
+      ip: ip ?? null,
+      userAgent: userAgent?.slice(0, 300) ?? null,
+    });
     return raw;
   }
 

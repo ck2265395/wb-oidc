@@ -1,4 +1,5 @@
-import { getPool } from '../db/pool';
+import { getDataSource } from '../db/data-source';
+import { OidcClient } from '../db/entities';
 import { encryptSecret, isKeyPersistent } from './secret-cipher';
 
 /**
@@ -17,18 +18,16 @@ export async function migratePlaintextSecrets(): Promise<void> {
     return;
   }
   try {
-    const pool = getPool();
-    const { rows } = await pool.query<{ client_id: string; client_secret: string }>(
-      `SELECT client_id, client_secret FROM oidc_clients
-        WHERE client_secret IS NOT NULL
-          AND client_secret <> ''
-          AND client_secret NOT LIKE 'enc:v1:%'`,
-    );
+    const repo = getDataSource().getRepository(OidcClient);
+    const rows = await repo
+      .createQueryBuilder('c')
+      .select(['c.clientId', 'c.clientSecret'])
+      .where("c.clientSecret <> ''")
+      .andWhere("c.clientSecret NOT LIKE 'enc:v1:%'")
+      .getMany();
     for (const r of rows) {
-      await pool.query('UPDATE oidc_clients SET client_secret = $2 WHERE client_id = $1', [
-        r.client_id,
-        encryptSecret(r.client_secret),
-      ]);
+      if (!r.clientSecret) continue;
+      await repo.update({ clientId: r.clientId }, { clientSecret: encryptSecret(r.clientSecret) });
     }
     if (rows.length) {
       // eslint-disable-next-line no-console

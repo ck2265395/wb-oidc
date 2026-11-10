@@ -13,18 +13,22 @@ wb-oidc/
 │   ├── src/
 │   │   ├── main.ts              # 入口：挂载 OIDC 中间件 + interaction 路由 + SPA
 │   │   ├── config/env.ts        # 环境变量集中校验（启动即失败）
-│   │   ├── db/pool.ts           # PG 连接池（adapter / clients 共用）
+│   │   ├── db/
+│   │   │   ├── data-source.ts   # TypeORM DataSource 单例（启动自动跑迁移）
+│   │   │   ├── entities.ts      # 7 张表实体（clients/state/admin/session/log/developer/...）
+│   │   │   └── migrations/      # TypeORM 迁移（全新建表，不用 synchronize）
+│   │   ├── common/              # 密钥加密、审计工具、登录限流、过期状态清理
 │   │   ├── oidc/
 │   │   │   ├── provider.factory.ts   # oidc-provider 配置（PKCE 默认、RS256、claims）
 │   │   │   ├── pg.adapter.ts         # 会话/code/token/grant 持久化到 PG
 │   │   │   ├── interaction.routes.ts # 登录/授权页数据与提交端点
 │   │   │   └── legacy/legacy-user.service.ts  # 老库用户校验（bcrypt/md5/sha1/...，只读连老系统 PG）
 │   │   ├── clients/             # 第三方应用管理（注册/密钥/回调白名单/启停/审核）
-│   │   ├── admin/               # 管理员鉴权、账号管理、审计、概览/会话/老库查询
+│   │   ├── admin/               # 管理员鉴权、账号管理、审计、运营查询（概览/会话/老库）
 │   │   ├── developer/           # 开发者门户后端（注册/登录/资格申请/应用申请/审核）
 │   │   └── health/health.controller.ts
 │   └── scripts/
-│       ├── seed.mjs             # 建表 + 注册示例应用 + 首个超管
+│       ├── seed.mjs             # 跑迁移建表 + 注册示例应用 + 首个超管（需先 npm run build）
 │       ├── verify-legacy.mjs    # 探测老库密码算法
 │       ├── smoke-all.mjs        # 全链路冒烟（46 项断言）
 │       └── smoke-profile.mjs    # 资料编辑链路冒烟（14 项断言）
@@ -67,8 +71,18 @@ cp .env.example .env
 
 ```bash
 cd backend
-node scripts/seed.mjs
+npm run build                     # seed 依赖 dist 产物（实体/迁移），需先构建
+npm run seed
 # 成功后输出示例 client：wb-demo-spa / secret
+```
+
+数据表由 TypeORM migrations 管理（启动时 `migrationsRun` 自动应用新迁移，`synchronize` 关闭）。常用命令：
+
+```bash
+npm run db:reinit       # 一键全量初始化：清空全部表 → 重跑迁移 → 重新 seed（危险：数据全丢）
+npm run migration:show  # 查看迁移状态
+npm run migration:run   # 手动应用未执行的迁移
+npm run migration:revert  # 回滚最近一次迁移
 ```
 
 ### 3.1 确认老库密码算法（建议先跑一次）
@@ -258,11 +272,11 @@ node scripts/smoke-all.mjs http://localhost:3200
 - [ ] `ISSUER` 换成正式 https 域名；全部走 HTTPS
 - [ ] `ADMIN_JWT_SECRET` / `OIDC_COOKIE_SECRET` 换成强随机值（当前已随机生成，仍需按环境隔离），密钥用 KMS 或至少定期轮换
 - [ ] `ADMIN_COOKIE_SECURE=true`（https 环境）
-- [ ] 登录加图形/短信验证码 + 失败限流（防撞库）
+- [ ] 登录加图形/短信验证码（失败限流已内置：`RATE_LIMIT_LOGIN_MAX`/`RATE_LIMIT_LOGIN_WINDOW_MS`，默认 15 分钟 10 次/账号+IP）
 - [ ] 管理员操作审计接入日志平台，保留 ≥ 180 天
 - [ ] **`CLIENT_SECRET_KEY` 与数据库分开备份**：密钥丢了，库里已加密的 `client_secret` 全部无法恢复（可申请轮换，但会中断第三方接入）
 - [ ] 老系统若支持改密/注销，补充 back-channel logout
-- [ ] PG 数据库备份策略；adapter 表 `expires_at` 清理任务（seed 脚本里带了 SQL）
+- [ ] PG 数据库备份策略（adapter 表过期状态由启动的定时清理任务每小时自动清理）
 
 ## 常见问题
 
