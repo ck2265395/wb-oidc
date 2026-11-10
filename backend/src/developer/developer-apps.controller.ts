@@ -41,6 +41,15 @@ export class DeveloperAppsController {
     return { data: rows.map(safeClient) };
   }
 
+  @Get(':clientId')
+  async getOne(@Req() req: Request, @Param('clientId') clientId: string) {
+    const dev = currentDeveloper(req);
+    const row = await this.clients.get(clientId);
+    if (!row) throw new BadRequestException(`应用 ${clientId} 不存在`);
+    this.clients.assertOwned(row, dev.id);
+    return { data: safeClient(row) };
+  }
+
   @Post()
   async create(@Req() req: Request, @Body() dto: CreateClientDto) {
     const dev = currentDeveloper(req);

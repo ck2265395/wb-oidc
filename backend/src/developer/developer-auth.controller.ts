@@ -103,6 +103,7 @@ export class DeveloperAuthController {
         contact: row.contact,
         status: row.status,
         developer_status: row.developer_status,
+        developer_type: row.developer_type,
         developer_reject_reason: row.developer_reject_reason,
         developer_applied_at: row.developer_applied_at,
         reject_reason: row.reject_reason,

@@ -18,8 +18,23 @@ const router = createRouter({
           meta: { requiresAuth: true, portal: 'developer' },
         },
         {
+          path: 'apps/new',
+          component: () => import('../views/developer/DevAppFormView.vue'),
+          meta: { requiresAuth: true, portal: 'developer' },
+        },
+        {
+          path: 'apps/:clientId/edit',
+          component: () => import('../views/developer/DevAppFormView.vue'),
+          meta: { requiresAuth: true, portal: 'developer' },
+        },
+        {
           path: 'profile',
           component: () => import('../views/developer/DevProfileView.vue'),
+          meta: { requiresAuth: true, portal: 'developer' },
+        },
+        {
+          path: 'profile/edit',
+          component: () => import('../views/developer/DevProfileEditView.vue'),
           meta: { requiresAuth: true, portal: 'developer' },
         },
       ],

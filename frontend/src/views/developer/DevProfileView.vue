@@ -5,7 +5,7 @@
         <h2 class="page-title">账号资料</h2>
         <p class="page-desc">账号信息、开发者资格与审核状态。</p>
       </div>
-      <el-button type="primary" :icon="EditPen" @click="editVisible = true">
+      <el-button type="primary" :icon="EditPen" @click="$router.push('/profile/edit')">
         编辑开发者资料
       </el-button>
     </div>
@@ -64,24 +64,16 @@
         <el-button @click="$router.push('/docs')">查看接入文档</el-button>
       </div>
     </div>
-
-    <DevProfileEditDialog v-model="editVisible" :info="info" @saved="onSaved" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { EditPen } from '@element-plus/icons-vue';
-import DevProfileEditDialog from './DevProfileEditDialog.vue';
 import { DeveloperInfo, devFetchMe, getCurrentDeveloper } from '../../api/dev';
 
 const info = ref<DeveloperInfo | null>(getCurrentDeveloper());
 const loading = ref(true);
-const editVisible = ref(false);
-
-function onSaved(updated: DeveloperInfo) {
-  info.value = updated;
-}
 
 onMounted(async () => {
   const fresh = await devFetchMe();

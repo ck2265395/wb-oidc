@@ -21,7 +21,7 @@
           </div>
         </div>
         <div class="panel-actions">
-          <el-button :icon="EditPen" @click="profileEditVisible = true">编辑开发者资料</el-button>
+          <el-button :icon="EditPen" @click="$router.push('/profile/edit')">编辑开发者资料</el-button>
           <el-button link type="primary" @click="$router.push('/profile')">查看完整资料 →</el-button>
         </div>
       </div>
@@ -181,7 +181,7 @@
               link
               type="primary"
               :disabled="row.status === 'pending'"
-              @click="openEdit(row)"
+              @click="$router.push(`/apps/${row.client_id}/edit`)"
             >
               编辑
             </el-button>
@@ -192,229 +192,33 @@
         </template>
       </el-table>
     </section>
-
-    <!-- 补充开发者信息（点新建应用且尚未通过资格审核时弹出） -->
-    <el-dialog v-model="applyVisible" title="补充开发者信息" width="520px">
-      <el-alert
-        v-if="dev?.developer_status === 'rejected'"
-        class="mb16"
-        type="error"
-        :closable="false"
-        show-icon
-        :title="dev?.developer_reject_reason || '上次申请未通过，请更新资料后重新提交'"
-      />
-      <p class="dialog-lead">
-        创建应用需要开发者资格。请补充以下信息并提交，管理员审核通过后即可创建接入应用。
-      </p>
-      <el-form label-position="top">
-        <el-form-item label="公司 / 团队" required>
-          <el-input v-model="applyForm.company" placeholder="请填写公司或团队全称" maxlength="128" />
-        </el-form-item>
-        <el-form-item label="联系方式" required>
-          <el-input v-model="applyForm.contact" placeholder="手机 / 邮箱 / 即时通讯账号" maxlength="64" />
-        </el-form-item>
-      </el-form>
-      <el-alert
-        type="info"
-        :closable="false"
-        title="提交后由管理员审核；审核期间可继续查看资料与接入文档。"
-      />
-      <template #footer>
-        <el-button @click="applyVisible = false">取消</el-button>
-        <el-button type="primary" :loading="applying" @click="submitApply">提交审核</el-button>
-      </template>
-    </el-dialog>
-
-    <!-- 新建应用 -->
-    <el-dialog v-model="createVisible" title="新建应用" width="560px">
-      <el-form label-position="top">
-        <el-form-item label="应用名称" required>
-          <el-input v-model="createForm.client_name" placeholder="例如：小鹅砍价小程序" maxlength="64" />
-        </el-form-item>
-        <el-form-item label="应用图标（100×100）">
-          <div class="logo-upload" @click="openLogoPicker('create')">
-            <img v-if="createForm.logo" :src="createForm.logo" class="logo-preview" alt="应用图标" />
-            <el-icon v-else class="logo-plus"><Plus /></el-icon>
-            <span v-if="createForm.logo" class="logo-clear" @click.stop="createForm.logo = ''">移除</span>
-          </div>
-        </el-form-item>
-        <el-form-item label="应用类目" required>
-          <el-select v-model="createForm.category" placeholder="选择应用类目">
-            <el-option label="网站应用" value="web_app" />
-            <el-option label="移动应用" value="mobile_app" />
-            <el-option label="小程序" value="mini_program" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="应用简介">
-          <el-input
-            v-model="createForm.description"
-            type="textarea"
-            :rows="3"
-            maxlength="200"
-            show-word-limit
-            placeholder="一句话介绍这个应用（200 字以内）"
-          />
-        </el-form-item>
-        <el-form-item label="官网域名">
-          <el-input v-model="createForm.website" placeholder="https://www.example.com" />
-        </el-form-item>
-        <el-form-item label="回调地址（每行一个）" required>
-          <el-input
-            v-model="createForm.redirect_uris_text"
-            type="textarea"
-            :rows="3"
-            placeholder="https://app.example.com/auth/callback"
-          />
-        </el-form-item>
-        <el-form-item v-if="isEnterprise" label="ICP 备案号" required>
-          <el-input v-model="createForm.icp_number" placeholder="京ICP备XXXXXXXX号" />
-          <div class="form-hint">企业开发者创建应用必须填写 ICP 备案号（提供方：{{ dev?.company || '—' }}）。</div>
-        </el-form-item>
-        <el-form-item v-else label="ICP 备案号">
-          <el-input v-model="createForm.icp_number" placeholder="选填，企业开发者必填" />
-        </el-form-item>
-        <el-form-item label="标签">
-          <el-input v-model="createForm.tags_text" placeholder="用逗号分隔，如：内部工具, 数据看板" />
-        </el-form-item>
-        <el-form-item label="申请的 scopes">
-          <el-checkbox-group v-model="createForm.scopes">
-            <el-checkbox value="profile">profile</el-checkbox>
-            <el-checkbox value="email">email</el-checkbox>
-            <el-checkbox value="phone">phone</el-checkbox>
-          </el-checkbox-group>
-        </el-form-item>
-        <el-form-item required>
-          <el-checkbox v-model="agreed">我已阅读并同意《开发者协议》</el-checkbox>
-        </el-form-item>
-      </el-form>
-      <el-alert
-        type="info"
-        :closable="false"
-        title="提交后进入待审核状态，管理员审核通过后应用才能发起 OIDC 登录。"
-      />
-      <template #footer>
-        <el-button @click="createVisible = false">取消</el-button>
-        <el-button type="primary" :loading="creating" @click="submitCreate">提交申请</el-button>
-      </template>
-    </el-dialog>
-
-    <!-- 编辑应用 -->
-    <el-dialog v-model="editVisible" title="编辑应用" width="560px">
-      <el-form label-position="top">
-        <el-form-item label="应用名称" required>
-          <el-input v-model="editForm.client_name" maxlength="64" />
-        </el-form-item>
-        <el-form-item label="应用图标（100×100）">
-          <div class="logo-upload" @click="openLogoPicker('edit')">
-            <img v-if="editForm.logo" :src="editForm.logo" class="logo-preview" alt="应用图标" />
-            <el-icon v-else class="logo-plus"><Plus /></el-icon>
-            <span v-if="editForm.logo" class="logo-clear" @click.stop="editForm.logo = ''">移除</span>
-          </div>
-        </el-form-item>
-        <el-form-item label="应用简介">
-          <el-input
-            v-model="editForm.description"
-            type="textarea"
-            :rows="3"
-            maxlength="200"
-            show-word-limit
-            placeholder="一句话介绍这个应用（200 字以内）"
-          />
-        </el-form-item>
-        <el-form-item label="官网域名">
-          <el-input v-model="editForm.website" placeholder="https://www.example.com" />
-        </el-form-item>
-        <el-form-item label="回调地址（每行一个）" required>
-          <el-input v-model="editForm.redirect_uris_text" type="textarea" :rows="3" />
-        </el-form-item>
-        <el-form-item v-if="isEnterprise" label="ICP 备案号" required>
-          <el-input v-model="editForm.icp_number" placeholder="京ICP备XXXXXXXX号" />
-        </el-form-item>
-        <el-form-item v-else label="ICP 备案号">
-          <el-input v-model="editForm.icp_number" placeholder="选填，企业开发者必填" />
-        </el-form-item>
-        <el-form-item label="标签">
-          <el-input v-model="editForm.tags_text" placeholder="用逗号分隔，如：内部工具, 数据看板" />
-        </el-form-item>
-        <el-form-item label="scopes（空格分隔，必须含 openid）">
-          <el-input v-model="editForm.scope" placeholder="openid profile email" />
-        </el-form-item>
-      </el-form>
-      <el-alert
-        type="warning"
-        :closable="false"
-        title="修改回调地址或 scope 后，应用会回到待审核状态，需管理员重新审核。"
-      />
-      <template #footer>
-        <el-button @click="editVisible = false">取消</el-button>
-        <el-button type="primary" :loading="editing" @click="submitEdit">保存</el-button>
-      </template>
-    </el-dialog>
-
-    <!-- 凭据展示（仅显示一次） -->
-    <el-dialog v-model="credentialVisible" title="凭据仅显示一次" width="560px">
-      <el-descriptions :column="1" border>
-        <el-descriptions-item label="client_id">
-          <el-text copyable>{{ credential?.client_id }}</el-text>
-        </el-descriptions-item>
-        <el-descriptions-item v-if="credential?.secret" label="client_secret">
-          <el-text copyable type="danger">{{ credential.secret }}</el-text>
-        </el-descriptions-item>
-      </el-descriptions>
-      <el-alert
-        class="mt16"
-        type="warning"
-        :closable="false"
-        title="请立即保存到应用配置，此窗口关闭后无法再次查看。"
-      />
-    </el-dialog>
-
-    <!-- 编辑开发者资料（工作台与资料页共用） -->
-    <DevProfileEditDialog
-      v-model="profileEditVisible"
-      :info="dev"
-      @saved="onProfileSaved"
-    />
-
-    <input ref="logoInput" type="file" accept="image/*" hidden @change="onLogoPicked" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Search, EditPen, Plus } from '@element-plus/icons-vue';
-import DevProfileEditDialog from './DevProfileEditDialog.vue';
+import { Search, EditPen } from '@element-plus/icons-vue';
 import { CATEGORY_LABELS } from '../../api';
-import { fileToLogo } from '../../utils/logo';
 import devApi, {
   DevAppRow,
   DeveloperInfo,
-  devApplyDeveloper,
   devFetchMe,
   extractDevError,
   getCurrentDeveloper,
 } from '../../api/dev';
 
+const router = useRouter();
 const loading = ref(false);
 const loadingUser = ref(true);
 const apps = ref<DevAppRow[]>([]);
 const dev = ref<DeveloperInfo | null>(getCurrentDeveloper());
 const keyword = ref('');
 const categoryFilter = ref('');
-const profileEditVisible = ref(false);
-const agreed = ref(false);
-const logoTarget = ref<'create' | 'edit'>('create');
-const logoInput = ref<HTMLInputElement | null>(null);
-
-const isEnterprise = computed(() => dev.value?.developer_type === 'enterprise');
 
 function categoryLabel(cat?: string): string {
   return (cat && CATEGORY_LABELS[cat]) || '网站应用';
-}
-
-function onProfileSaved(updated: DeveloperInfo) {
-  dev.value = updated;
 }
 
 const avatarText = computed(() => (dev.value?.email || '?').slice(0, 1).toUpperCase());
@@ -449,59 +253,6 @@ const filteredApps = computed(() => {
   });
 });
 
-const applyVisible = ref(false);
-const applying = ref(false);
-const applyForm = ref({ company: '', contact: '' });
-const createVisible = ref(false);
-const creating = ref(false);
-const editVisible = ref(false);
-const editing = ref(false);
-const credentialVisible = ref(false);
-const credential = ref<{ client_id: string; secret: string } | null>(null);
-const editingId = ref('');
-
-const createForm = ref({
-  client_name: '',
-  redirect_uris_text: '',
-  category: 'web_app' as const,
-  logo: '',
-  description: '',
-  website: '',
-  icp_number: '',
-  tags_text: '',
-  scopes: ['profile'],
-});
-const editForm = ref({
-  client_name: '',
-  redirect_uris_text: '',
-  category: 'web_app' as const,
-  logo: '',
-  description: '',
-  website: '',
-  icp_number: '',
-  tags_text: '',
-  scope: '',
-});
-
-function openLogoPicker(target: 'create' | 'edit') {
-  logoTarget.value = target;
-  logoInput.value?.click();
-}
-
-async function onLogoPicked(e: Event) {
-  const input = e.target as HTMLInputElement;
-  const file = input.files?.[0];
-  input.value = '';
-  if (!file) return;
-  try {
-    const dataUrl = await fileToLogo(file);
-    if (logoTarget.value === 'create') createForm.value.logo = dataUrl;
-    else editForm.value.logo = dataUrl;
-  } catch (err: any) {
-    ElMessage.error(err?.message || '图标处理失败');
-  }
-}
-
 onMounted(refreshAll);
 
 async function refreshUser() {
@@ -532,7 +283,7 @@ async function loadApps() {
 
 /**
  * 点「新建应用」时才检测开发者资格：
- * 已认证 → 直接打开创建弹窗；未认证 → 引导补充资料提交后台审核。
+ * 已认证 → 跳转新建应用页；未认证 → 引导到资料编辑页补充资料并提交审核。
  */
 async function handleNewApp() {
   await refreshUser();
@@ -555,36 +306,11 @@ async function handleNewApp() {
     return;
   }
   if (d.developer_status !== 'approved') {
-    openApply();
+    // 未认证：去资料编辑页补充并提交审核
+    router.push('/profile/edit');
     return;
   }
-  openCreate();
-}
-
-function openApply() {
-  applyForm.value = { company: dev.value?.company || '', contact: dev.value?.contact || '' };
-  applyVisible.value = true;
-}
-
-async function submitApply() {
-  if (applyForm.value.company.trim().length < 2) {
-    ElMessage.warning('请填写公司 / 团队名称');
-    return;
-  }
-  if (applyForm.value.contact.trim().length < 2) {
-    ElMessage.warning('请填写联系方式');
-    return;
-  }
-  applying.value = true;
-  try {
-    dev.value = await devApplyDeveloper(applyForm.value.company.trim(), applyForm.value.contact.trim());
-    applyVisible.value = false;
-    ElMessage.success('资料已提交，等待管理员审核');
-  } catch (e) {
-    ElMessage.error(extractDevError(e, '提交失败，请稍后重试'));
-  } finally {
-    applying.value = false;
-  }
+  router.push('/apps/new');
 }
 
 function fmtTime(s?: string | null): string {
@@ -600,127 +326,6 @@ function statusText(status: string) {
     { approved: '已通过', pending: '待审核', rejected: '已拒绝', suspended: '已停用' }[status] ||
     status
   );
-}
-
-function parseUris(text: string): string[] {
-  return text
-    .split('\n')
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
-function openCreate() {
-  createForm.value = {
-    client_name: '',
-    redirect_uris_text: '',
-    category: 'web_app',
-    logo: '',
-    description: '',
-    website: '',
-    icp_number: '',
-    tags_text: '',
-    scopes: ['profile'],
-  };
-  agreed.value = false;
-  createVisible.value = true;
-}
-
-function parseTags(text: string): string[] {
-  return text
-    ? text.split(/[,，]/).map((t) => t.trim()).filter(Boolean)
-    : [];
-}
-
-async function submitCreate() {
-  if (!createForm.value.client_name) {
-    ElMessage.warning('请填写应用名称');
-    return;
-  }
-  const uris = parseUris(createForm.value.redirect_uris_text);
-  if (!uris.length) {
-    ElMessage.warning('请至少填写一个回调地址');
-    return;
-  }
-  if (!agreed.value) {
-    ElMessage.warning('请先阅读并同意《开发者协议》');
-    return;
-  }
-  if (isEnterprise.value && !createForm.value.icp_number.trim()) {
-    ElMessage.warning('企业开发者必须填写 ICP 备案号');
-    return;
-  }
-  creating.value = true;
-  try {
-    const { data } = await devApi.post<{
-      data: DevAppRow;
-      client_id: string;
-      client_secret: string;
-    }>('/api/developer/apps', {
-      client_name: createForm.value.client_name,
-      redirect_uris: uris,
-      category: createForm.value.category,
-      logo: createForm.value.logo || undefined,
-      description: createForm.value.description || undefined,
-      website: createForm.value.website || undefined,
-      icp_number: createForm.value.icp_number || undefined,
-      tags: parseTags(createForm.value.tags_text),
-      scope: ['openid', ...createForm.value.scopes].join(' '),
-    });
-    createVisible.value = false;
-    credential.value = { client_id: data.client_id, secret: data.client_secret };
-    credentialVisible.value = true;
-    await loadApps();
-  } catch (e) {
-    ElMessage.error(extractDevError(e, '提交失败'));
-    // 资格可能在页面打开期间被撤销，刷新状态
-    await refreshUser();
-  } finally {
-    creating.value = false;
-  }
-}
-
-function openEdit(row: DevAppRow) {
-  editingId.value = row.client_id;
-  editForm.value = {
-    client_name: row.client_name,
-    redirect_uris_text: row.redirect_uris.join('\n'),
-    category: row.category || 'web_app',
-    logo: row.logo || '',
-    description: row.description || '',
-    website: row.website || '',
-    icp_number: row.icp_number || '',
-    tags_text: (row.tags || []).join(', '),
-    scope: row.scope,
-  };
-  editVisible.value = true;
-}
-
-async function submitEdit() {
-  if (isEnterprise.value && !editForm.value.icp_number.trim()) {
-    ElMessage.warning('企业开发者必须填写 ICP 备案号');
-    return;
-  }
-  editing.value = true;
-  try {
-    await devApi.patch(`/api/developer/apps/${editingId.value}`, {
-      client_name: editForm.value.client_name,
-      redirect_uris: parseUris(editForm.value.redirect_uris_text),
-      category: editForm.value.category,
-      logo: editForm.value.logo || undefined,
-      description: editForm.value.description || undefined,
-      website: editForm.value.website || undefined,
-      icp_number: editForm.value.icp_number || undefined,
-      tags: parseTags(editForm.value.tags_text),
-      scope: editForm.value.scope,
-    });
-    editVisible.value = false;
-    ElMessage.success('已保存，应用回到待审核状态');
-    await loadApps();
-  } catch (e) {
-    ElMessage.error(extractDevError(e, '保存失败'));
-  } finally {
-    editing.value = false;
-  }
 }
 </script>
 
@@ -918,48 +523,6 @@ async function submitEdit() {
   height: 100%;
   object-fit: cover;
 }
-.form-hint {
-  margin-top: 6px;
-  font-size: 12px;
-  line-height: 1.6;
-  color: #8a93a6;
-}
-.logo-upload {
-  position: relative;
-  width: 100px;
-  height: 100px;
-  border: 1px dashed #cdd5e3;
-  border-radius: 12px;
-  background: #f7f9fc;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  overflow: hidden;
-  transition: border-color 0.15s;
-}
-.logo-upload:hover {
-  border-color: #0b57d0;
-}
-.logo-preview {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.logo-plus {
-  font-size: 26px;
-  color: #b3bdce;
-}
-.logo-clear {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  padding: 2px 8px;
-  font-size: 12px;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.55);
-  border-top-left-radius: 8px;
-}
 .app-title {
   font-weight: 600;
   color: #0b1220;
@@ -974,20 +537,6 @@ async function submitEdit() {
   font-size: 12px;
   color: #6b7280;
   word-break: break-all;
-}
-
-/* ---------- 弹窗 ---------- */
-.dialog-lead {
-  margin: 0 0 18px;
-  font-size: 13px;
-  line-height: 1.8;
-  color: #4b5563;
-}
-.mb16 {
-  margin-bottom: 16px;
-}
-.mt16 {
-  margin-top: 16px;
 }
 
 @media (max-width: 768px) {

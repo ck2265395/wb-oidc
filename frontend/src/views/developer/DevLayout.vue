@@ -17,7 +17,7 @@
           <RouterLink
             to="/apps"
             class="menu-item"
-            :class="{ active: route.path === '/apps' }"
+            :class="{ active: route.path === '/apps' || route.path.startsWith('/apps/') }"
           >
             工作台
           </RouterLink>
