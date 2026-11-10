@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { getPool } from '../db/pool';
+import { encryptSecret, decryptSecret } from '../common/secret-cipher';
 
 export interface ClientRow {
   id: number;
@@ -45,7 +46,8 @@ export interface CreateClientDto {
 
 /**
  * 第三方应用（OIDC Client）管理。
- * client_secret 明文存库（仅限内部管理端访问），生产建议加密存储 + 轮换。
+ * client_secret 落库前用 AES-256-GCM 加密（见 common/secret-cipher.ts），
+ * 历史明文数据由 decryptSecret 透明兼容，启动时会被一次性迁移为密文。
  */
 @Injectable()
 export class ClientsService {
@@ -135,8 +137,9 @@ export class ClientsService {
     }
 
     const clientId = `app_${randomBytes(8).toString('hex')}`;
-    const secret = randomBytes(24).toString('hex');
+    // PKCE 类目（移动/小程序）不发 secret：发了也不会用于认证，只会误导接入方去配一个无效密钥
     const authMethod = applicationType === 'spa' ? 'none' : 'client_secret_basic';
+    const secret = authMethod === 'none' ? '' : randomBytes(24).toString('hex');
     const scope = dto.scope || 'openid profile email';
     const status = opts?.status || 'approved';
 
@@ -151,7 +154,7 @@ export class ClientsService {
        RETURNING *`,
       [
         clientId,
-        secret,
+        encryptSecret(secret),
         dto.client_name,
         applicationType,
         authMethod,
@@ -247,6 +250,22 @@ export class ClientsService {
       );
       const isWeb = cat === 'web_app';
       params.push(isWeb ? 'web' : 'spa', isWeb ? 'client_secret_basic' : 'none');
+
+      if (isWeb) {
+        // 从 PKCE 类目改成网站应用：原来没有 secret，补发一个，否则认证必然失败
+        const { rows: cur } = await getPool().query<{ client_secret: string }>(
+          'SELECT client_secret FROM oidc_clients WHERE client_id = $1 LIMIT 1',
+          [clientId],
+        );
+        if (!cur[0]?.client_secret) {
+          sets.push(`client_secret = $${idx++}`);
+          params.push(encryptSecret(randomBytes(24).toString('hex')));
+        }
+      } else {
+        // 改成 PKCE 类目：清掉 secret，免得库里留一个永远不会用到的凭据
+        sets.push(`client_secret = $${idx++}`);
+        params.push('');
+      }
     }
     if (dto.description !== undefined) {
       sets.push(`description = $${idx++}`);
@@ -341,10 +360,21 @@ export class ClientsService {
       `UPDATE oidc_clients
           SET client_secret = $2, updated_at = NOW()
         WHERE client_id = $1 RETURNING *`,
-      [clientId, secret],
+      [clientId, encryptSecret(secret)],
     );
     if (!rows.length) throw new NotFoundException(`client ${clientId} 不存在`);
     return { client: rows[0], secret };
+  }
+
+  /**
+   * 取密钥明文（开发者查看用）。调用方必须先校验归属与二次验证。
+   * 移动/小程序等 PKCE 类目没有 secret，返回 null。
+   */
+  async revealSecret(clientId: string): Promise<string | null> {
+    const row = await this.get(clientId);
+    if (!row) throw new NotFoundException(`client ${clientId} 不存在`);
+    if (row.token_endpoint_auth_method === 'none' || !row.client_secret) return null;
+    return decryptSecret(row.client_secret);
   }
 
   async remove(clientId: string): Promise<void> {
@@ -357,7 +387,7 @@ export class ClientsService {
   async toOidcClient(row: ClientRow): Promise<Record<string, any>> {
     return {
       client_id: row.client_id,
-      client_secret: row.client_secret,
+      client_secret: decryptSecret(row.client_secret),
       client_name: row.client_name,
       application_type: row.application_type,
       token_endpoint_auth_method: row.token_endpoint_auth_method,

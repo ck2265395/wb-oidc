@@ -117,14 +117,20 @@ cd frontend && npm install && npm run build
 2. 登录后进入 `/apps` **工作台**，两个模块常显：**用户资料与状态**（账号状态、开发者资格、资料字段、审核进度，右上角可「编辑开发者资料」）+ **我的应用列表**（普通用户为空列表）
 3. 资料维护走**整页表单** `/profile/edit`（工作台模块一或 `/profile` 账号资料页的「编辑开发者资料」都跳到这里）——可「仅保存资料」（不改变资格）或「保存并提交审核」。填写**公司 / 团队 + 联系方式 + 个人/企业类型**提交后 `developer_status=pending`；审核中可继续改资料，被驳回可改资料重提。点「新建应用」时先做资格检测，未认证会跳到这里补充资料
 4. 管理员在控制台「**开发者审核**」页审核资格（左侧菜单有待审数量角标、顶栏有待办入口）：通过 → `approved`；驳回（填理由）→ `rejected`
-5. **资格 `approved` 后点「新建应用」跳到 `/apps/new` 整页创建表单**：填写名称 / 类目 / 图标 / 简介 / 官网 / 回调 / ICP / 标签 / scopes 并勾选开发者协议 → 应用 `pending`，此时无法发起授权；创建成功页会**常驻展示一次性的 client_id / client_secret**（离开后无法再看）
+5. **资格 `approved` 后点「新建应用」跳到 `/apps/new` 整页创建表单**：填写名称 / 类目 / 图标 / 简介 / 官网 / 回调 / ICP / 标签 / scopes 并勾选开发者协议 → 应用 `pending`，此时无法发起授权；创建成功页展示 `client_id` / `client_secret`，之后在「编辑应用 → 接入配置」中可随时重新查看（需验证登录密码）
 6. 管理员在「应用管理」审核通过 → 应用 `approved`，可正常走 OIDC；编辑应用走 `/apps/:clientId/edit` 整页表单，修改**回调地址或 scope** → 自动回到 `pending` 重新审核（名称改动不触发）
 
 > **表单一律整页**：编辑开发者资料、新建应用、编辑应用都是独立路由页（`/profile/edit`、`/apps/new`、`/apps/:clientId/edit`），不再用弹窗——字段多时可完整展示、可刷新、不易误关。
 
 > 账号状态（能否登录）与开发者资格（能否建应用）是两个独立字段；创建应用时服务端**实时查库**校验资格，不依赖 JWT 里签发的旧状态。应用列表接口不校验资格，普通用户也能正常看到空列表。
 
-> **应用类目与分组**：创建应用需选择类目 `category`（`web_app` 网站应用 / `mobile_app` 移动应用 / `mini_program` 小程序），类目同时决定安全形态（网站应用发 `client_secret`，移动/小程序走 PKCE）。列表页可按类目筛选；另提供自由 `tags`（最多 20 个）做任意归类，暂不做独立分组管理 UI（应用量上来再升级独立分组表）。**个人 / 企业开发者**：`developer_type` 区分 `personal` / `enterprise`；**企业开发者创建或编辑应用时必须保留 ICP 备案号 `icp_number`**（参照 QQ 开放平台中国合规要求），个人开发者与管理端创建不强制。应用元数据字段：`logo`（≤100×100 图标 data URL）、`description`（≤200 字自动截断）、`website`（官网域名，需 http(s)://）。
+> **应用类目与分组**：创建应用需选择类目 `category`（`web_app` 网站应用 / `mobile_app` 移动应用 / `mini_program` 小程序），类目同时决定安全形态（网站应用发 `client_secret`，移动/小程序走 PKCE 且**不下发** secret）。列表页可按类目筛选；另提供自由 `tags`（最多 20 个）做任意归类，暂不做独立分组管理 UI（应用量上来再升级独立分组表）。**个人 / 企业开发者**：`developer_type` 区分 `personal` / `enterprise`；**企业开发者创建或编辑应用时必须保留 ICP 备案号 `icp_number`**（参照 QQ 开放平台中国合规要求），个人开发者与管理端创建不强制。应用元数据字段：`logo`（≤100×100 图标 data URL）、`description`（≤200 字自动截断）、`website`（官网域名，需 http(s)://）。
+
+> **client_secret 存储与查看**：`oidc_clients.client_secret` 落库前用 **AES-256-GCM 加密**（`enc:v1:<iv>:<tag>:<cipher>`），不是明文也不是哈希——因为平台允许开发者随时查看自己的密钥。查看走 `POST /api/developer/apps/:clientId/reveal-secret`，**必须重新输入登录密码**，每次查看（含失败）都写 `oidc_admin_log` 审计日志（`action=developer.reveal_secret[.failed]`，`username=developer:<邮箱>`）。
+>
+> 主密钥优先级：环境变量 `CLIENT_SECRET_KEY`（32 字节 hex/base64，**生产必须显式设置**）> `backend/.secret-key` 文件（首次启动自动生成、已在 .gitignore）。主密钥要与数据库**分开保管**，否则加密失去意义。主密钥无法持久化时，启动会跳过存量加密迁移并告警，避免把可用数据变成解不开的密文。
+>
+> 历史明文数据在启动时由 `migratePlaintextSecrets()` 幂等迁移为密文；读取侧 `decryptSecret()` 对无前缀的旧值原样返回，保证灰度期兼容。轮换接口（`POST /api/admin/clients/:clientId/rotate-secret`）仍保留，用于密钥外泄后的止损，**立即失效**（无新旧并存过渡期）。
 
 ### B. 管理端直接注册
 
@@ -181,6 +187,7 @@ npm run smoke:password -- http://127.0.0.1:3000 # 改密码链路冒烟（9 项�
 npm run smoke:all -- http://127.0.0.1:3200      # 全链路冒烟：开发者门户 + 审核 + OIDC + 审计/会话/老库（46 项）
 npm run smoke:profile -- http://127.0.0.1:3200  # 资料编辑链路冒烟：仅保存 / 审核中改 / 已认证改（14 项）
 npm run smoke:app-meta -- http://127.0.0.1:3200  # 应用元数据 / 个人企业开发者冒烟（17 项：企业 ICP 强制、类目派生、简介截断、官网校验）
+npm run smoke:secret -- http://127.0.0.1:3200   # 密钥加密与查看冒烟（20 项：密文落库、二次验证、归属校验、token 端点认证、审计）
 ```
 
 管理员接口（需 `super_admin`）：
@@ -227,6 +234,7 @@ npm run smoke:app-meta -- http://127.0.0.1:3200  # 应用元数据 / 个人企�
 | GET | `/api/developer/apps` | 我的应用列表（不校验资格，普通用户返回空列表） |
 | POST | `/api/developer/apps` | 提交应用申请 `{ client_name, redirect_uris, category, logo, description, website, icp_number, tags }` → `pending`（**需资格 `approved`**，否则 403；**企业开发者必填 `icp_number`**） |
 | PATCH | `/api/developer/apps/:clientId` | 编辑（可改类目/图标/简介/官网/ICP/标签；改回调/scope 自动回 `pending`；**企业开发者清空 ICP 被拒**） |
+| POST | `/api/developer/apps/:clientId/reveal-secret` | 查看 `client_secret` 明文 `{ password }`：缺密码 400、密码错 401、PKCE 应用返回 `null`；均在 `oidc_admin_log` 留痕 |
 
 全链路冒烟（`smoke:all` 46 项 + `smoke:profile` 14 项，自带临时超管 / 临时用户并在结束后清理数据）：
 
@@ -252,6 +260,7 @@ node scripts/smoke-all.mjs http://localhost:3200
 - [ ] `ADMIN_COOKIE_SECURE=true`（https 环境）
 - [ ] 登录加图形/短信验证码 + 失败限流（防撞库）
 - [ ] 管理员操作审计接入日志平台，保留 ≥ 180 天
+- [ ] **`CLIENT_SECRET_KEY` 与数据库分开备份**：密钥丢了，库里已加密的 `client_secret` 全部无法恢复（可申请轮换，但会中断第三方接入）
 - [ ] 老系统若支持改密/注销，补充 back-channel logout
 - [ ] PG 数据库备份策略；adapter 表 `expires_at` 清理任务（seed 脚本里带了 SQL）
 

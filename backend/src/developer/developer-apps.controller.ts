@@ -7,12 +7,14 @@ import {
   Patch,
   Post,
   Req,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { ClientsService, CreateClientDto, ClientRow } from '../clients/clients.service';
 import { DeveloperGuard, currentDeveloper } from './developer.guard';
 import { DeveloperAuthService } from './developer-auth.service';
+import { AdminAuditService } from '../admin/admin-audit.service';
 
 /** 开发者自己的应用（返回前剥离 secret 与内部字段） */
 function safeClient(row: ClientRow) {
@@ -32,6 +34,7 @@ export class DeveloperAppsController {
   constructor(
     private readonly clients: ClientsService,
     private readonly devAuth: DeveloperAuthService,
+    private readonly audit: AdminAuditService,
   ) {}
 
   @Get()
@@ -50,9 +53,36 @@ export class DeveloperAppsController {
     return { data: safeClient(row) };
   }
 
-  @Post()
-  async create(@Req() req: Request, @Body() dto: CreateClientDto) {
+  /**
+   * 查看 client_secret 明文。
+   * 需要重新输入登录密码做二次验证，且每次查看（成功/失败）都写审计日志。
+   * 移动应用 / 小程序走 PKCE 没有 secret，返回 client_secret: null。
+   */
+  @Post(':clientId/reveal-secret')
+  async revealSecret(
+    @Req() req: Request,
+    @Param('clientId') clientId: string,
+    @Body() body: { password?: string },
+  ) {
     const dev = currentDeveloper(req);
+    const row = await this.clients.get(clientId);
+    if (!row) throw new BadRequestException(`应用 ${clientId} 不存在`);
+    this.clients.assertOwned(row, dev.id);
+
+    if (!body?.password) throw new BadRequestException('请输入登录密码以验证身份');
+    const ok = await this.devAuth.verifyPassword(dev.id, body.password);
+    if (!ok) {
+      await this.audit.logDeveloper(dev, 'developer.reveal_secret.failed', clientId, undefined, req.ip);
+      throw new UnauthorizedException('登录密码不正确');
+    }
+
+    const secret = await this.clients.revealSecret(clientId);
+    await this.audit.logDeveloper(dev, 'developer.reveal_secret', clientId, undefined, req.ip);
+    return { data: { client_id: clientId, client_secret: secret } };
+  }
+
+  @Post()
+  async create(@Req() req: Request, @Body() dto: CreateClientDto) {    const dev = currentDeveloper(req);
     // 实时查库校验开发者资格，不信任 JWT 里签发的旧状态
     await this.devAuth.assertDeveloperApproved(dev.id);
     const { client, secret } = await this.clients.create(dto, {

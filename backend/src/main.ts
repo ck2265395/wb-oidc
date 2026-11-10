@@ -10,6 +10,7 @@ import { createProvider } from './oidc/provider.factory';
 import { interactionRouter } from './oidc/interaction.routes';
 import { loadConfig } from './config/env';
 import { closePool, waitReady } from './db/pool';
+import { migratePlaintextSecrets } from './common/secret-migration';
 
 const PROVIDER_PREFIXES = [
   '/auth',
@@ -30,6 +31,8 @@ async function bootstrap(): Promise<void> {
 
   // 先建表再接请求，避免首个请求与 ensureSchema 竞态
   await waitReady();
+  // 存量明文 client_secret 一次性加密（幂等，主密钥未持久化时自动跳过）
+  await migratePlaintextSecrets();
 
   const app = await NestFactory.create(AppModule, {
     logger: ['error', 'warn', 'log'],

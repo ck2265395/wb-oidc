@@ -21,7 +21,7 @@
         <el-icon class="cred-icon"><CircleCheckFilled /></el-icon>
         <div>
           <h3>应用已提交审核</h3>
-          <p>以下凭据仅显示这一次，请立即复制保存到你的应用配置中。</p>
+          <p>把下面的凭据复制到你的应用配置中，之后也可以随时在应用设置里重新查看。</p>
         </div>
       </div>
       <el-descriptions :column="1" border>
@@ -34,10 +34,10 @@
       </el-descriptions>
       <el-alert
         class="mt16"
-        type="warning"
+        type="info"
         :closable="false"
         show-icon
-        title="离开本页后将无法再次查看 client_secret，如遗失只能轮换密钥。"
+        title="client_secret 已加密存储，可在「编辑应用 → 接入配置」中随时查看（需验证登录密码，并记录审计日志）。"
       />
       <div class="cred-actions">
         <el-button @click="goBack">返回工作台</el-button>
@@ -111,6 +111,33 @@
         </el-form-item>
 
         <h3 class="section-title">接入配置</h3>
+
+        <!-- 已有应用的凭据：client_secret 默认遮挡，查看需二次验证密码 -->
+        <div v-if="isEdit" class="cred-box">
+          <div class="cred-line">
+            <span class="cred-label">client_id</span>
+            <el-text copyable class="cred-value">{{ clientId }}</el-text>
+          </div>
+          <div v-if="hasSecret" class="cred-line">
+            <span class="cred-label">client_secret</span>
+            <span class="cred-value mono">{{ revealedSecret || '••••••••••••••••••••' }}</span>
+            <el-button v-if="!revealedSecret" size="small" :loading="revealing" @click="askPassword">
+              查看
+            </el-button>
+            <template v-else>
+              <el-button size="small" text type="primary" @click="copySecret">复制</el-button>
+              <el-button size="small" @click="revealedSecret = ''">隐藏</el-button>
+            </template>
+          </div>
+          <div v-else class="cred-line">
+            <span class="cred-label">client_secret</span>
+            <span class="cred-value muted">该应用使用 PKCE，无 client_secret</span>
+          </div>
+          <div class="form-hint">
+            查看密钥需重新输入登录密码；每次查看都会记录审计日志（谁、何时、从哪个 IP）。
+          </div>
+        </div>
+
         <el-form-item label="回调地址（每行一个）" prop="redirect_uris_text">
           <el-input
             v-model="form.redirect_uris_text"
@@ -185,7 +212,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import { ArrowLeft, Plus, CircleCheckFilled } from '@element-plus/icons-vue';
 import { fileToLogo } from '../../utils/logo';
@@ -210,6 +237,13 @@ const appStatus = ref<string>('');
 const credential = ref<{ client_id: string; secret: string } | null>(null);
 const formRef = ref<FormInstance>();
 const logoInput = ref<HTMLInputElement | null>(null);
+/** 该应用是否使用 client_secret（PKCE 类目没有） */
+const hasSecret = ref(true);
+/** 明文密钥只放内存，离开页面/刷新即清空 */
+const revealedSecret = ref('');
+const revealing = ref(false);
+/** 进入页面时的类目，用于判断保存后安全形态是否变化 */
+const originalCategory = ref<'web_app' | 'mobile_app' | 'mini_program' | ''>('');
 
 const isEnterprise = computed(() => dev.value?.developer_type === 'enterprise');
 
@@ -311,6 +345,8 @@ async function loadApp() {
     const { data } = await devApi.get<{ data: any }>(`/api/developer/apps/${clientId}`);
     const row = data.data;
     appStatus.value = row.status;
+    hasSecret.value = row.token_endpoint_auth_method !== 'none';
+    originalCategory.value = row.category || 'web_app';
     form.value = {
       client_name: row.client_name || '',
       redirect_uris_text: (row.redirect_uris || []).join('\n'),
@@ -335,6 +371,56 @@ function goBack() {
 function goNewAgain() {
   credential.value = null;
   router.replace('/apps/new');
+}
+
+/** 查看 client_secret：先验证登录密码，再向服务端要明文（服务端会写审计日志） */
+async function askPassword() {
+  let pwd = '';
+  try {
+    const { value } = await ElMessageBox.prompt(
+      `密钥以加密形式存储，查看时需验证身份。请输入账号 ${dev.value?.email || ''} 的登录密码。`,
+      '验证身份以查看密钥',
+      {
+        confirmButtonText: '确认查看',
+        cancelButtonText: '取消',
+        inputType: 'password',
+        inputPlaceholder: '登录密码',
+        inputValidator: (v: string) => (v && v.length > 0 ? true : '请输入登录密码'),
+      },
+    );
+    pwd = value;
+  } catch {
+    return; // 用户取消
+  }
+
+  revealing.value = true;
+  try {
+    const { data } = await devApi.post<{ data: { client_secret: string | null } }>(
+      `/api/developer/apps/${clientId}/reveal-secret`,
+      { password: pwd },
+    );
+    if (!data.data.client_secret) {
+      hasSecret.value = false;
+      ElMessage.warning('该应用使用 PKCE 授权，没有 client_secret');
+      return;
+    }
+    revealedSecret.value = data.data.client_secret;
+  } catch (e) {
+    ElMessage.error(extractDevError(e, '身份验证失败，请稍后重试'));
+  } finally {
+    revealing.value = false;
+  }
+}
+
+/** 复制已查看的明文密钥 */
+async function copySecret() {
+  if (!revealedSecret.value) return;
+  try {
+    await navigator.clipboard.writeText(revealedSecret.value);
+    ElMessage.success('已复制到剪贴板');
+  } catch {
+    ElMessage.warning('当前浏览器不允许自动复制，请手动选中复制');
+  }
 }
 
 async function submit() {
@@ -364,6 +450,22 @@ async function submit() {
         tags: parseTags(form.value.tags_text),
         scope: form.value.scope,
       });
+      // 类目切换会改变安全形态：从 PKCE 改成网站应用会补发新密钥，此时留在页面让用户能查看
+      const wasPkce = originalCategory.value !== '' && originalCategory.value !== 'web_app';
+      const nowWeb = form.value.category === 'web_app';
+      if (wasPkce && nowWeb) {
+        revealedSecret.value = '';
+        await loadApp();
+        ElMessage.warning(
+          '已保存。类目改为网站应用，系统已生成新的 client_secret，请点「查看」复制到你的应用配置中。',
+        );
+        return;
+      }
+      if (!nowWeb && originalCategory.value === 'web_app') {
+        ElMessage.success('已保存。类目改为移动 / 小程序，client_secret 已停用（改用 PKCE）。');
+        router.push('/apps');
+        return;
+      }
       ElMessage.success('已保存，应用进入待审核状态');
       router.push('/apps');
     } else {
@@ -461,6 +563,37 @@ async function submit() {
   font-size: 12px;
   line-height: 1.6;
   color: #8a93a6;
+}
+.cred-box {
+  margin-bottom: 20px;
+  padding: 14px 16px 10px;
+  background: #f7f9fc;
+  border: 1px solid #e3eaf3;
+  border-radius: 10px;
+}
+.cred-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.cred-label {
+  flex: none;
+  width: 104px;
+  font-size: 12px;
+  color: #8a93a6;
+}
+.cred-value {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  word-break: break-all;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: #0b1220;
+}
+.cred-value.muted {
+  font-family: inherit;
+  color: #a0a8b8;
 }
 .logo-upload {
   position: relative;

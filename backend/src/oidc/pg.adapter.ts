@@ -1,4 +1,5 @@
 import { getPool } from '../db/pool';
+import { decryptSecret } from '../common/secret-cipher';
 
 /**
  * oidc-provider PostgreSQL Adapter。
@@ -64,7 +65,7 @@ export class PgAdapter {
     if (row.enabled === false) return undefined;
     return {
       client_id: row.client_id,
-      client_secret: row.client_secret,
+      client_secret: decryptSecret(row.client_secret),
       client_name: row.client_name,
       application_type: row.application_type,
       token_endpoint_auth_method: row.token_endpoint_auth_method,

@@ -21,3 +21,6 @@ dist/
 .DS_Store
 .idea/
 .vscode/
+
+# client_secret 落库加密主密钥（绝不能提交）
+backend/.secret-key

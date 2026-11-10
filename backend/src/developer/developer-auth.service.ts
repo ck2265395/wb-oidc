@@ -77,6 +77,16 @@ export class DeveloperAuthService {
     };
   }
 
+  /** 二次验证：查看 client_secret 前要求重新输入登录密码。 */
+  async verifyPassword(developerId: number, password: string): Promise<boolean> {
+    const { rows } = await getPool().query<DeveloperRow>(
+      'SELECT password_hash FROM oidc_developer WHERE id = $1 LIMIT 1',
+      [developerId],
+    );
+    const hash = rows[0]?.password_hash ?? DUMMY_HASH;
+    return bcrypt.compareSync(password || '', hash);
+  }
+
   async refresh(rawToken: string, ip?: string, userAgent?: string) {
     if (!rawToken) throw new UnauthorizedException('缺少刷新令牌');
     const hash = crypto.createHash('sha256').update(rawToken).digest('hex');
