@@ -2,8 +2,15 @@
   <div class="console-page">
     <el-container class="layout">
       <el-aside width="210px" class="aside">
-        <div class="logo">🛠 WB OIDC 控制台</div>
-        <el-menu :default-active="route.path" router class="menu">
+        <div class="logo"><span class="logo-badge">WB</span> 管理控制台</div>
+        <el-menu
+          :default-active="route.path"
+          router
+          class="menu"
+          background-color="#0f172a"
+          text-color="#94a3b8"
+          active-text-color="#a5b4fc"
+        >
           <el-menu-item index="/console/overview">
             <span>📊 概览</span>
           </el-menu-item>
@@ -179,22 +186,34 @@ async function submitPassword() {
   height: 100vh;
 }
 .aside {
-  background: #fff;
-  border-right: 1px solid #e4e7ed;
-  display: flex;
-  flex-direction: column;
+  background: #0f172a;
 }
 .logo {
   height: 56px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  gap: 8px;
+  font-size: 15px;
   font-weight: 600;
-  border-bottom: 1px solid #e4e7ed;
+  color: #e2e8f0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+}
+.logo-badge {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .menu {
   border-right: none;
+  background: #0f172a;
 }
 .header {
   display: flex;

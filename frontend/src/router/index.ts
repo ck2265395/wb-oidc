@@ -5,7 +5,25 @@ import { getDevAccessToken, refreshDevSession } from '../api/dev';
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/', redirect: '/console' },
+    // 开发者门户（根路径直达：首页/文档公开，应用管理/资料需登录）
+    {
+      path: '/',
+      component: () => import('../views/developer/DevLayout.vue'),
+      children: [
+        { path: '', component: () => import('../views/developer/DevHomeView.vue') },
+        { path: 'docs', component: () => import('../views/developer/DevDocsView.vue') },
+        {
+          path: 'apps',
+          component: () => import('../views/developer/DevAppsView.vue'),
+          meta: { requiresAuth: true, portal: 'developer' },
+        },
+        {
+          path: 'profile',
+          component: () => import('../views/developer/DevProfileView.vue'),
+          meta: { requiresAuth: true, portal: 'developer' },
+        },
+      ],
+    },
     { path: '/login', component: () => import('../views/LoginView.vue') },
     {
       path: '/console',
@@ -54,24 +72,10 @@ const router = createRouter({
       path: '/developer/login',
       component: () => import('../views/developer/DevLoginView.vue'),
     },
-    {
-      path: '/developer',
-      component: () => import('../views/developer/DevPortalView.vue'),
-      meta: { requiresAuth: true, portal: 'developer' },
-      redirect: '/developer/apps',
-      children: [
-        {
-          path: 'apps',
-          component: () => import('../views/developer/DevAppsView.vue'),
-          meta: { requiresAuth: true, portal: 'developer' },
-        },
-        {
-          path: 'docs',
-          component: () => import('../views/developer/DevDocsView.vue'),
-          meta: { requiresAuth: true, portal: 'developer' },
-        },
-      ],
-    },
+    // 兼容旧门户路径
+    { path: '/developer/apps', redirect: '/apps' },
+    { path: '/developer/docs', redirect: '/docs' },
+    { path: '/developer', redirect: '/' },
     { path: '/interaction/:uid', component: () => import('../views/InteractionView.vue') },
     { path: '/callback', component: () => import('../views/CallbackView.vue') },
   ],
@@ -96,7 +100,7 @@ router.beforeEach(async (to) => {
     return { path: '/login', query: { redirect: to.fullPath } };
   }
   if (to.path === '/login' && getAccessToken()) return '/console';
-  if (to.path === '/developer/login' && getDevAccessToken()) return '/developer';
+  if (to.path === '/developer/login' && getDevAccessToken()) return '/apps';
   return true;
 });
 

@@ -1,59 +1,99 @@
 <template>
-  <div>
-    <el-alert
-      v-if="dev && dev.status === 'pending'"
-      class="mb16"
-      type="warning"
-      :closable="false"
-      title="账号正在审核中，审核通过后即可创建应用。"
-    />
-    <el-alert
-      v-if="dev && dev.status === 'suspended'"
-      class="mb16"
-      type="error"
-      :closable="false"
-      :title="`账号已停用：${dev.reject_reason || '请联系管理员'}`"
-    />
-
-    <div class="toolbar">
-      <el-button type="primary" :disabled="dev?.status !== 'active'" @click="openCreate">
+  <div class="apps-wrap">
+    <div class="apps-head">
+      <div>
+        <h2 class="page-title">我的应用</h2>
+        <p class="page-desc">管理你的接入应用：提交申请、查看审核状态、维护回调地址与权限。</p>
+      </div>
+      <el-button
+        type="primary"
+        size="large"
+        round
+        :disabled="dev?.status !== 'active'"
+        @click="openCreate"
+      >
         + 提交应用申请
       </el-button>
-      <el-button @click="loadApps">刷新</el-button>
     </div>
 
-    <el-table :data="apps" v-loading="loading" stripe>
-      <el-table-column prop="client_name" label="应用名称" min-width="140" />
-      <el-table-column prop="client_id" label="client_id" min-width="180" />
-      <el-table-column label="回调地址" min-width="200">
-        <template #default="{ row }">
-          <div v-for="u in row.redirect_uris" :key="u" class="uri-line">{{ u }}</div>
+    <div class="apps-card">
+      <div class="card-toolbar">
+        <el-input
+          v-model="keyword"
+          placeholder="搜索应用名称或 client_id"
+          clearable
+          :prefix-icon="Search"
+          style="width: 280px"
+        />
+        <el-button text type="primary" @click="loadApps">刷新</el-button>
+      </div>
+
+      <el-alert
+        v-if="dev && dev.status === 'pending'"
+        class="mb16"
+        type="warning"
+        :closable="false"
+        title="账号正在审核中，审核通过后即可创建应用。"
+      />
+      <el-alert
+        v-if="dev && dev.status === 'suspended'"
+        class="mb16"
+        type="error"
+        :closable="false"
+        :title="`账号已停用：${dev.reject_reason || '请联系管理员'}`"
+      />
+
+      <el-table :data="filteredApps" v-loading="loading" class="apps-table">
+        <el-table-column prop="client_name" label="应用名称" min-width="150">
+          <template #default="{ row }">
+            <div class="app-name">
+              <div class="app-avatar">{{ (row.client_name || '?').slice(0, 1) }}</div>
+              <div>
+                <div class="app-title">{{ row.client_name }}</div>
+                <div class="app-cid">{{ row.client_id }}</div>
+              </div>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="回调地址" min-width="220">
+          <template #default="{ row }">
+            <div v-for="u in row.redirect_uris" :key="u" class="uri-line">{{ u }}</div>
+          </template>
+        </el-table-column>
+        <el-table-column label="类型" width="90">
+          <template #default="{ row }">
+            <el-tag size="small" effect="plain" round>
+              {{ row.application_type === 'spa' ? '公共' : '机密' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="审核状态" width="110">
+          <template #default="{ row }">
+            <el-tooltip :content="row.reject_reason" :disabled="!row.reject_reason" placement="top">
+              <el-tag :type="statusTag(row.status)" size="small" round effect="light">
+                {{ statusText(row.status) }}
+              </el-tag>
+            </el-tooltip>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="120" fixed="right">
+          <template #default="{ row }">
+            <el-button
+              size="small"
+              link
+              type="primary"
+              :disabled="row.status === 'pending'"
+              @click="openEdit(row)"
+            >
+              编辑
+            </el-button>
+          </template>
+        </el-table-column>
+        <template #empty>
+          <el-empty description="还没有应用，点击右上角提交第一个申请" />
         </template>
-      </el-table-column>
-      <el-table-column label="审核状态" width="110" fixed="right">
-        <template #default="{ row }">
-          <el-tooltip :content="row.reject_reason" :disabled="!row.reject_reason" placement="top">
-            <el-tag :type="statusTag(row.status)" size="small">{{ statusText(row.status) }}</el-tag>
-          </el-tooltip>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="140" fixed="right">
-        <template #default="{ row }">
-          <el-button
-            size="small"
-            link
-            type="primary"
-            :disabled="row.status === 'pending'"
-            @click="openEdit(row)"
-          >
-            编辑
-          </el-button>
-        </template>
-      </el-table-column>
-      <template #empty>
-        <el-empty description="还没有应用，点击上方按钮提交申请" />
-      </template>
-    </el-table>
+      </el-table>
+    </div>
 
     <!-- 提交应用申请 -->
     <el-dialog v-model="createVisible" title="提交应用申请" width="520px">
@@ -139,13 +179,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
+import { Search } from '@element-plus/icons-vue';
 import devApi, { DevAppRow, DeveloperInfo, extractDevError, getCurrentDeveloper } from '../../api/dev';
 
 const loading = ref(false);
 const apps = ref<DevAppRow[]>([]);
 const dev = ref<DeveloperInfo | null>(getCurrentDeveloper());
+const keyword = ref('');
+
+const filteredApps = computed(() => {
+  const kw = keyword.value.trim().toLowerCase();
+  if (!kw) return apps.value;
+  return apps.value.filter(
+    (a) =>
+      a.client_name.toLowerCase().includes(kw) || a.client_id.toLowerCase().includes(kw),
+  );
+});
 
 const createVisible = ref(false);
 const creating = ref(false);
@@ -264,8 +315,68 @@ async function submitEdit() {
 </script>
 
 <style scoped>
-.toolbar {
+.apps-wrap {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 40px 24px 64px;
+}
+.apps-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  gap: 16px;
+}
+.page-title {
+  margin: 0 0 6px;
+  font-size: 24px;
+  font-weight: 800;
+  color: #111827;
+}
+.page-desc {
+  margin: 0;
+  font-size: 13px;
+  color: #9ca3af;
+}
+.apps-card {
+  background: #fff;
+  border: 1px solid #eef0f4;
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(17, 24, 39, 0.04);
+}
+.card-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 16px;
+}
+.app-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.app-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  color: #fff;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.app-title {
+  font-weight: 600;
+  color: #111827;
+  font-size: 14px;
+}
+.app-cid {
+  font-size: 12px;
+  color: #9ca3af;
+  font-family: monospace;
 }
 .mb16 {
   margin-bottom: 16px;
@@ -275,7 +386,7 @@ async function submitEdit() {
 }
 .uri-line {
   font-size: 12px;
-  color: #666;
+  color: #6b7280;
   word-break: break-all;
 }
 </style>

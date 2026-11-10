@@ -1,53 +1,80 @@
 <template>
-  <div class="dev-login-page">
-    <el-card class="card" shadow="always">
-      <div class="head">
-        <div class="logo">🚪 开发者门户</div>
-        <div class="sub">接入统一身份认证（OIDC），触达平台存量用户</div>
+  <div class="auth-page">
+    <div class="auth-card">
+      <!-- 左侧品牌区 -->
+      <div class="brand-side">
+        <div class="brand-logo">WB</div>
+        <h2 class="brand-title">WB 开放平台</h2>
+        <p class="brand-desc">接入统一身份认证，触达全平台存量用户</p>
+        <ul class="brand-points">
+          <li>✓ 标准 OIDC 协议，主流客户端开箱即用</li>
+          <li>✓ 用户免注册，现有账号一键登录</li>
+          <li>✓ 回调白名单 + 应用审核双重把关</li>
+        </ul>
+        <div class="brand-deco">
+          <span class="deco-badge">authorization_code</span>
+          <span class="deco-badge">PKCE · S256</span>
+          <span class="deco-badge">RS256</span>
+        </div>
       </div>
 
-      <el-tabs v-model="tab" stretch>
-        <el-tab-pane label="登录" name="login">
-          <el-form ref="loginFormRef" :model="loginForm" :rules="loginRules" label-position="top">
-            <el-form-item label="邮箱" prop="email">
-              <el-input v-model="loginForm.email" placeholder="you@company.com" @keyup.enter="submitLogin" />
-            </el-form-item>
-            <el-form-item label="密码" prop="password">
-              <el-input v-model="loginForm.password" type="password" show-password placeholder="密码" @keyup.enter="submitLogin" />
-            </el-form-item>
-            <el-button type="primary" class="block" :loading="submitting" @click="submitLogin">
-              登录
-            </el-button>
-          </el-form>
-        </el-tab-pane>
+      <!-- 右侧表单区 -->
+      <div class="form-side">
+        <el-tabs v-model="tab" stretch>
+          <el-tab-pane label="开发者登录" name="login">
+            <el-form ref="loginFormRef" :model="loginForm" :rules="loginRules" label-position="top" size="large">
+              <el-form-item label="邮箱" prop="email">
+                <el-input v-model="loginForm.email" placeholder="you@company.com" @keyup.enter="submitLogin" />
+              </el-form-item>
+              <el-form-item label="密码" prop="password">
+                <el-input v-model="loginForm.password" type="password" show-password placeholder="密码" @keyup.enter="submitLogin" />
+              </el-form-item>
+              <el-button type="primary" class="block" size="large" :loading="submitting" @click="submitLogin">
+                登录开发者中心
+              </el-button>
+            </el-form>
+          </el-tab-pane>
 
-        <el-tab-pane label="注册" name="register">
-          <el-form ref="regFormRef" :model="regForm" :rules="regRules" label-position="top">
-            <el-form-item label="邮箱" prop="email">
-              <el-input v-model="regForm.email" placeholder="you@company.com" />
-            </el-form-item>
-            <el-form-item label="密码" prop="password">
-              <el-input v-model="regForm.password" type="password" show-password placeholder="至少 10 位，含字母和数字" />
-            </el-form-item>
-            <el-form-item label="公司 / 团队名称">
-              <el-input v-model="regForm.company" placeholder="选填，便于管理员审核" />
-            </el-form-item>
-            <el-form-item label="联系方式">
-              <el-input v-model="regForm.contact" placeholder="选填，手机号或微信号" />
-            </el-form-item>
-            <el-button type="primary" class="block" :loading="submitting" @click="submitRegister">
-              提交注册申请
-            </el-button>
-          </el-form>
-        </el-tab-pane>
-      </el-tabs>
+          <el-tab-pane label="注册开发者" name="register">
+            <el-form ref="regFormRef" :model="regForm" :rules="regRules" label-position="top" size="large">
+              <el-form-item label="邮箱" prop="email">
+                <el-input v-model="regForm.email" placeholder="you@company.com" />
+              </el-form-item>
+              <el-form-item label="密码" prop="password">
+                <el-input v-model="regForm.password" type="password" show-password placeholder="至少 10 位，含字母和数字" />
+              </el-form-item>
+              <el-row :gutter="12">
+                <el-col :span="12">
+                  <el-form-item label="公司 / 团队">
+                    <el-input v-model="regForm.company" placeholder="选填，便于审核" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="联系方式">
+                    <el-input v-model="regForm.contact" placeholder="选填" />
+                  </el-form-item>
+                </el-col>
+              </el-row>
+              <el-button type="primary" class="block" size="large" :loading="submitting" @click="submitRegister">
+                提交注册申请
+              </el-button>
+              <el-alert
+                class="reg-tip"
+                type="info"
+                :closable="false"
+                title="提交后进入人工审核，通过后即可登录并提交应用。"
+              />
+            </el-form>
+          </el-tab-pane>
+        </el-tabs>
 
-      <el-divider />
-      <div class="foot">
-        <span>管理员？</span>
-        <el-link type="primary" @click="$router.push('/login')">去管理控制台</el-link>
+        <el-divider />
+        <div class="foot">
+          <span>平台管理员？</span>
+          <el-link type="primary" @click="$router.push('/console')">进入管理控制台</el-link>
+        </div>
       </div>
-    </el-card>
+    </div>
 
     <!-- 注册成功提示 -->
     <el-dialog v-model="regOkVisible" title="注册成功" width="420px">
@@ -60,7 +87,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
@@ -68,7 +95,9 @@ import { devLogin, devRegister, extractDevError, getCurrentDeveloper } from '../
 
 const router = useRouter();
 const route = useRoute();
-const tab = ref<'login' | 'register'>('login');
+const tab = ref<'login' | 'register'>(
+  route.query.tab === 'register' ? 'register' : 'login',
+);
 const submitting = ref(false);
 
 const loginFormRef = ref<FormInstance>();
@@ -109,7 +138,7 @@ async function submitLogin() {
       ElMessage.warning('账号未通过审核或已停用，功能受限');
     }
     const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '';
-    router.replace(redirect || '/developer');
+    router.replace(redirect || '/apps');
   } catch (e) {
     ElMessage.error(extractDevError(e, '登录失败，请稍后重试'));
   } finally {
@@ -140,42 +169,110 @@ async function submitRegister() {
   }
 }
 
-// 已登录直接进门户
-if (getCurrentDeveloper()) router.replace('/developer');
+// 已登录直接进应用管理
+onMounted(() => {
+  if (getCurrentDeveloper()) router.replace('/apps');
+});
 </script>
 
 <style scoped>
-.dev-login-page {
+.auth-page {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #1f2d3d 0%, #2b4a6f 100%);
+  padding: 24px;
+  background:
+    radial-gradient(900px 420px at 15% 0%, rgba(79, 70, 229, 0.16), transparent 60%),
+    radial-gradient(900px 420px at 90% 100%, rgba(124, 58, 237, 0.14), transparent 60%),
+    #f5f6ff;
 }
-.card {
-  width: 400px;
+.auth-card {
+  width: 860px;
+  max-width: 100%;
+  min-height: 560px;
+  display: flex;
+  border-radius: 20px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 24px 64px rgba(17, 24, 39, 0.12);
 }
-.head {
-  text-align: center;
-  margin-bottom: 8px;
+.brand-side {
+  width: 380px;
+  flex-shrink: 0;
+  padding: 48px 36px;
+  background: linear-gradient(160deg, #4338ca 0%, #6d28d9 60%, #7c3aed 100%);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
 }
-.logo {
-  font-size: 20px;
-  font-weight: 600;
-  color: #303133;
+.brand-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 16px;
 }
-.sub {
-  margin-top: 6px;
-  font-size: 12px;
-  color: #909399;
+.brand-title {
+  margin: 28px 0 8px;
+  font-size: 24px;
+  font-weight: 800;
+}
+.brand-desc {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.78);
+  line-height: 1.6;
+}
+.brand-points {
+  margin: 28px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.92);
+}
+.brand-deco {
+  margin-top: auto;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.deco-badge {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  color: rgba(255, 255, 255, 0.88);
+}
+.form-side {
+  flex: 1;
+  padding: 40px 44px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 .block {
   width: 100%;
   margin-top: 4px;
 }
+.reg-tip {
+  margin-top: 12px;
+}
 .foot {
   text-align: center;
   font-size: 13px;
   color: #909399;
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  align-items: center;
 }
 </style>
