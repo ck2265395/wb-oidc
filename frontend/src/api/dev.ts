@@ -7,7 +7,7 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
  */
 
 export interface DeveloperInfo {
-  id: number;
+  id: string;
   email: string;
   company: string;
   contact: string;
@@ -24,7 +24,7 @@ export interface DeveloperInfo {
 }
 
 export interface DevAppRow {
-  id: number;
+  id: string;
   client_id: string;
   client_name: string;
   application_type: string;

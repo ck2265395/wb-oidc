@@ -216,7 +216,8 @@ interface OverviewStats {
   provider_sessions: string;
   legacy_users: string;
   recent_logs: Array<{
-    id: number;
+    id: string;
+    actor_type: 'admin' | 'developer';
     username: string | null;
     action: string;
     target: string | null;

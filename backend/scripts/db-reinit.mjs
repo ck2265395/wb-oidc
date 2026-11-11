@@ -8,6 +8,7 @@ import { spawn } from 'child_process';
  * 危险操作：所有数据（应用/管理员/开发者/协议状态）都会丢失。
  *
  * 用法：npm run db:reinit
+ * 护栏：NODE_ENV=production 环境直接拒绝执行（本地/测试环境不受限）。
  */
 const TABLES = [
   'oidc_provider_state',
@@ -18,6 +19,12 @@ const TABLES = [
   'oidc_admin',
   'oidc_clients',
 ];
+
+const isProduction = process.env.NODE_ENV === 'production';
+if (isProduction) {
+  console.error('[reinit] 已拒绝：NODE_ENV=production 禁止执行 db:reinit（会清空全部业务数据）');
+  process.exit(1);
+}
 
 async function dropAll() {
   const client = new Client({
@@ -38,7 +45,7 @@ async function dropAll() {
 
 async function main() {
   await dropAll();
-  // 复用 seed.mjs：等 DataSource 初始化时自动应用迁移，再写入演示客户端与首个超管
+  // seed.mjs 内部会显式 runMigrations（幂等），再写入演示客户端与首个超管
   await new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ['scripts/seed.mjs'], { stdio: 'inherit' });
     child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`seed 退出码 ${code}`))));

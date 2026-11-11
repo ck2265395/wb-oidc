@@ -28,8 +28,13 @@ const DEMO_CLIENT = {
 };
 
 async function main() {
-  await waitReady(); // 等 DataSource 初始化并跑完迁移，避免 relation does not exist
+  await waitReady(); // 先建立连接
   const ds = getDataSource();
+  // 显式跑迁移（幂等：已应用的自动跳过）；应用启动不自动迁移
+  const applied = await ds.runMigrations();
+  if (applied.length) {
+    console.log(`[seed] 已应用迁移: ${applied.map((m) => m.name).join(', ')}`);
+  }
 
   const clients = ds.getRepository('OidcClient');
   const existing = await clients.findOne({ where: { clientId: DEMO_CLIENT.client_id } });

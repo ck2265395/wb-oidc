@@ -231,7 +231,7 @@ import api from '../../api';
 const { t } = useI18n();
 
 interface DeveloperRow {
-  id: number;
+  id: string;
   email: string;
   company: string;
   contact: string;

@@ -95,7 +95,7 @@ export class DeveloperAuthService {
   }
 
   /** 二次验证：查看 client_secret 前要求重新输入登录密码。 */
-  async verifyPassword(developerId: number, password: string): Promise<boolean> {
+  async verifyPassword(developerId: string, password: string): Promise<boolean> {
     const row = await this.repo.findOne({
       where: { id: developerId },
       select: { id: true, passwordHash: true },
@@ -152,7 +152,7 @@ export class DeveloperAuthService {
       };
       if (payload.typ !== 'developer_access') throw new Error('wrong token type');
       return {
-        id: Number(payload.sub),
+        id: payload.sub,
         email: payload.email,
         status: payload.status,
         // 兼容升级前签发的旧 token
@@ -164,7 +164,7 @@ export class DeveloperAuthService {
     }
   }
 
-  async me(id: number): Promise<DeveloperView> {
+  async me(id: string): Promise<DeveloperView> {
     const row = await this.repo.findOne({ where: { id } });
     if (!row) throw new BizException(ERROR_CODE.AUTH_USER_NOT_FOUND);
     return toDeveloperView(row);
@@ -175,7 +175,7 @@ export class DeveloperAuthService {
    * 仅普通用户（none）或被驳回（rejected）可提交；pending 不可重复提交，approved 已无需申请。
    */
   async applyDeveloper(
-    id: number,
+    id: string,
     company: string,
     contact: string,
     developerType?: 'personal' | 'enterprise',
@@ -215,7 +215,7 @@ export class DeveloperAuthService {
    * 不会因此被重新拉回审核（资格审核只由 applyDeveloper 或管理员触发）。
    */
   async updateProfile(
-    id: number,
+    id: string,
     company: string,
     contact: string,
     developerType?: 'personal' | 'enterprise',
@@ -233,7 +233,7 @@ export class DeveloperAuthService {
    * 创建/修改应用前的实时资格校验。
    * 必须查库而不能只信 JWT：管理员审核通过后，用户手上的旧 token 仍是旧状态。
    */
-  async assertDeveloperApproved(id: number): Promise<void> {
+  async assertDeveloperApproved(id: string): Promise<void> {
     const row = await this.repo.findOne({ where: { id } });
     if (!row) throw new BizException(ERROR_CODE.AUTH_USER_NOT_FOUND);
     if (row.status !== 'active') {
@@ -254,7 +254,7 @@ export class DeveloperAuthService {
   }
 
   /** 吊销某用户全部会话（账号状态变化时调用） */
-  async revokeAllSessions(developerId: number): Promise<void> {
+  async revokeAllSessions(developerId: string): Promise<void> {
     await this.sessionRepo.update(
       { developerId, revokedAt: IsNull() },
       { revokedAt: new Date() },
@@ -282,7 +282,7 @@ export class DeveloperAuthService {
 
   private principal(row: OidcDeveloper): DeveloperPrincipal {
     return {
-      id: Number(row.id),
+      id: row.id,
       email: row.email,
       status: row.status,
       developer_status: row.developerStatus,
@@ -293,7 +293,7 @@ export class DeveloperAuthService {
   private signAccess(principal: DeveloperPrincipal): string {
     return jwt.sign(
       {
-        sub: String(principal.id),
+        sub: principal.id,
         email: principal.email,
         status: principal.status,
         developer_status: principal.developer_status,
@@ -305,7 +305,7 @@ export class DeveloperAuthService {
     );
   }
 
-  private async createSession(developerId: number, ip?: string, userAgent?: string): Promise<string> {
+  private async createSession(developerId: string, ip?: string, userAgent?: string): Promise<string> {
     const raw = crypto.randomBytes(32).toString('base64url');
     const expiresAt = new Date(Date.now() + this.cfg.refreshTtlDays * 86400_000);
     await this.sessionRepo.insert({

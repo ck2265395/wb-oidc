@@ -136,11 +136,14 @@ export class ResetPasswordBody {
 
 /** 审计日志条目 */
 export class AdminLogItem {
-  @ApiProperty({ example: 100, description: '日志 ID' })
-  id!: number;
+  @ApiProperty({ description: '日志 ID（uuid）' })
+  id!: string;
 
-  @ApiProperty({ nullable: true, description: '操作者管理员 ID（开发者操作时为 null）' })
-  admin_id!: number | null;
+  @ApiProperty({ example: 'admin', description: "操作者类型：'admin' 管理端 / 'developer' 开发者门户" })
+  actor_type!: 'admin' | 'developer';
+
+  @ApiProperty({ nullable: true, description: '操作者管理员 ID（uuid，开发者操作时为 null）' })
+  admin_id!: string | null;
 
   @ApiProperty({ example: 'admin', description: '操作者账号；开发者操作格式为 developer:<email>' })
   username!: string | null;

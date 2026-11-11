@@ -16,8 +16,9 @@ let _ready: Promise<void> | null = null;
 
 /**
  * 全局唯一 DataSource（实体 + 迁移注册）。
- * 启动时 initialize 自动执行未应用的迁移（migrationsRun），
- * 等待建表完成用 waitReady()，避免首个请求与迁移竞态。
+ * 不开启 migrationsRun：应用启动绝不自动执行 DDL（多实例并发竞争、迁移失败拖垮启动、
+ * revert 后重启又把迁移跑回去）。迁移一律显式执行：npm run migration:run。
+ * 种子脚本/初始化脚本需要建表时，自行调用 ds.runMigrations()（幂等）。
  */
 export function getDataSource(): DataSource {
   if (!_ds) {
@@ -40,7 +41,8 @@ export function getDataSource(): DataSource {
         OidcDeveloperSession,
       ],
       migrations: [InitialSchema1731200000000],
-      migrationsRun: true,
+      // 禁止启动时自动跑迁移（显式 npm run migration:run），理由见上方注释
+      migrationsRun: false,
       synchronize: false,
     });
     _ready = _ds
@@ -55,7 +57,7 @@ export function getDataSource(): DataSource {
   return _ds;
 }
 
-/** 等待初始化与迁移完成（启动流程/种子脚本使用） */
+/** 等待连接建立（不含迁移；迁移用 npm run migration:run 或脚本内 runMigrations） */
 export async function waitReady(): Promise<void> {
   getDataSource();
   if (_ready) await _ready;

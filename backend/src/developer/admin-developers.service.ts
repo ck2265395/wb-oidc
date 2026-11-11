@@ -30,7 +30,7 @@ export class AdminDevelopersService {
 
   /** 审核开发者资格申请：pending → approved / rejected */
   async review(
-    id: number,
+    id: string,
     next: 'approved' | 'rejected',
     reason: string,
   ): Promise<OidcDeveloper> {
@@ -48,7 +48,7 @@ export class AdminDevelopersService {
 
   /** 账号启停（与开发者资格解耦） */
   async setStatus(
-    id: number,
+    id: string,
     next: 'active' | 'suspended',
     reason: string,
   ): Promise<OidcDeveloper> {
@@ -60,7 +60,7 @@ export class AdminDevelopersService {
     return this.getRow(id);
   }
 
-  private async getRow(id: number): Promise<OidcDeveloper> {
+  private async getRow(id: string): Promise<OidcDeveloper> {
     const row = await this.repo.findOne({ where: { id } });
     if (!row) throw new BizException(ERROR_CODE.DEVELOPER_NOT_FOUND, `用户 ${id} 不存在`);
     return row;

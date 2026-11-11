@@ -5,7 +5,7 @@ import { STORAGE_KEY } from '../i18n';
 export const ISSUER = (import.meta.env.VITE_ISSUER as string) || '';
 
 export interface AdminInfo {
-  id: number;
+  id: string;
   username: string;
   display_name: string;
   role: 'super_admin' | 'operator';
@@ -145,7 +145,7 @@ export async function changePassword(oldPassword: string, newPassword: string): 
 }
 
 export interface ClientRow {
-  id: number;
+  id: string;
   client_id: string;
   client_secret: string;
   client_name: string;
@@ -156,7 +156,7 @@ export interface ClientRow {
   response_types: string[];
   scope: string;
   enabled: boolean;
-  developer_id: number | null;
+  developer_id: string | null;
   developer_email?: string | null;
   status: 'pending' | 'approved' | 'rejected' | 'suspended';
   reject_reason: string;
@@ -222,14 +222,14 @@ export async function createAdmin(dto: {
 }
 
 export async function updateAdmin(
-  id: number,
+  id: string,
   dto: { display_name?: string; role?: 'super_admin' | 'operator'; enabled?: boolean },
 ): Promise<AdminInfo> {
   const { data } = await api.patch<{ data: AdminInfo }>(`/api/admin/users/${id}`, dto);
   return data.data;
 }
 
-export async function resetAdminPassword(id: number, password: string): Promise<void> {
+export async function resetAdminPassword(id: string, password: string): Promise<void> {
   await api.post(`/api/admin/users/${id}/reset-password`, { password });
 }
 

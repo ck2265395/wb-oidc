@@ -55,9 +55,10 @@ export class AdminOpsController {
     @Query() q: PageDto,
     @Query('action') action?: string,
     @Query('username') username?: string,
+    @Query('actor_type') actorType?: string,
   ) {
     void admin;
-    const result = await this.ops.listLogs(q.page, q.size, action, username);
+    const result = await this.ops.listLogs(q.page, q.size, action, username, actorType);
     return { data: result.data, total: result.total, page: q.page, size: q.size };
   }
 

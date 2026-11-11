@@ -34,7 +34,7 @@ import { AdminDevelopersService } from './developer/admin-developers.service';
     AdminOpsController,
   ],
   providers: [
-    // 全局唯一 DataSource（启动前 main.ts 已 waitReady 完成建表/迁移）
+    // 全局唯一 DataSource（启动前 main.ts 已 waitReady 完成连接；迁移须显式 migration:run）
     { provide: DataSource, useFactory: () => getDataSource() },
     ClientsService,
     LegacyUserService,

@@ -21,6 +21,7 @@ export class AdminAuditService {
     try {
       const repo = this.ds.getRepository(OidcAdminLog);
       const row = repo.create({
+        actorType: 'admin',
         adminId: admin ? admin.id : null,
         username: admin?.username ?? null,
         action,
@@ -36,11 +37,11 @@ export class AdminAuditService {
   }
 
   /**
-   * 开发者侧操作审计（复用同一张表）。
-   * 与管理员共用表，靠 username 前缀 `developer:` 区分，admin_id 留空避免与管理员 id 混淆。
+   * 开发者侧操作审计（复用同一张表，actor_type='developer' 显式区分）。
+   * admin_id 留空避免与管理员 uuid 混淆，开发者 uuid 记录在 detail.developer_id。
    */
   async logDeveloper(
-    developer: { id: number; email: string } | null,
+    developer: { id: string; email: string } | null,
     action: string,
     target?: string,
     detail?: Record<string, unknown>,
@@ -49,6 +50,7 @@ export class AdminAuditService {
     try {
       const repo = this.ds.getRepository(OidcAdminLog);
       const row = repo.create({
+        actorType: 'developer',
         adminId: null,
         username: developer ? `developer:${developer.email}` : 'developer:anonymous',
         action,

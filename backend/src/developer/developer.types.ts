@@ -6,7 +6,7 @@ export type DeveloperAccountStatus = 'active' | 'suspended';
 export type DeveloperQualification = 'none' | 'pending' | 'approved' | 'rejected';
 
 export interface DeveloperView {
-  id: number;
+  id: string;
   email: string;
   company: string;
   contact: string;
@@ -21,7 +21,7 @@ export interface DeveloperView {
 }
 
 export interface DeveloperPrincipal {
-  id: number;
+  id: string;
   email: string;
   status: DeveloperAccountStatus;
   developer_status: DeveloperQualification;
@@ -30,7 +30,7 @@ export interface DeveloperPrincipal {
 
 export function toDeveloperView(row: OidcDeveloper): DeveloperView {
   return {
-    id: Number(row.id),
+    id: row.id,
     email: row.email,
     company: row.company,
     contact: row.contact,

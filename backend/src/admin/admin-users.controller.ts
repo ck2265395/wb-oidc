@@ -4,7 +4,7 @@ import {
   ForbiddenException,
   Get,
   Param,
-  ParseIntPipe,
+  ParseUUIDPipe,
   Patch,
   Post,
   Req,
@@ -70,7 +70,7 @@ export class AdminUsersController {
   @ApiOkResponse({ type: AdminUserItemRes })
   async update(
     @CurrentAdmin() admin: AdminPrincipal,
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateAdminBody,
     @Req() req: Request,
   ) {
@@ -85,7 +85,7 @@ export class AdminUsersController {
   @ApiOkResponse({ type: OkRes })
   async resetPassword(
     @CurrentAdmin() admin: AdminPrincipal,
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() body: ResetPasswordBody,
     @Req() req: Request,
   ) {

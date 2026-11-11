@@ -3,7 +3,7 @@ import {
   Controller,
   Get,
   Param,
-  ParseIntPipe,
+  ParseUUIDPipe,
   Patch,
   Query,
   Req,
@@ -64,7 +64,7 @@ export class AdminDevelopersController {
   @ApiOkResponse({ type: DeveloperItemRes })
   async review(
     @CurrentAdmin() admin: AdminPrincipal,
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() body: DevReviewBody,
     @Req() req: Request,
   ) {
@@ -95,7 +95,7 @@ export class AdminDevelopersController {
   @ApiOkResponse({ type: DeveloperItemRes })
   async setStatus(
     @CurrentAdmin() admin: AdminPrincipal,
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() body: DevStatusBody,
     @Req() req: Request,
   ) {

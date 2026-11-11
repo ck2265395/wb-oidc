@@ -20,22 +20,41 @@ export class AdminOpsService {
     private readonly legacy: LegacyUserService,
   ) {}
 
+  /** 实体 → 对外 snake_case 视图（API 字段名与 DB 列名一致，前端直接读 created_at / actor_type） */
+  private toLogView(row: OidcAdminLog): Record<string, unknown> {
+    return {
+      id: row.id,
+      actor_type: row.actorType,
+      admin_id: row.adminId,
+      username: row.username,
+      action: row.action,
+      target: row.target,
+      detail: row.detail,
+      ip: row.ip,
+      created_at: new Date(row.createdAt).toISOString(),
+    };
+  }
+
   async listLogs(
     page: number,
     size: number,
     action?: string,
     username?: string,
-  ): Promise<{ data: OidcAdminLog[]; total: number; page: number; size: number }> {
+    actorType?: string,
+  ): Promise<{ data: Array<Record<string, unknown>>; total: number; page: number; size: number }> {
     const qb = this.ds.getRepository(OidcAdminLog).createQueryBuilder('l');
     if (action) qb.andWhere('l.action ILIKE :action', { action: `%${action}%` });
     if (username) qb.andWhere('l.username ILIKE :username', { username: `%${username}%` });
+    if (actorType === 'admin' || actorType === 'developer') {
+      qb.andWhere('l.actor_type = :actorType', { actorType });
+    }
     const total = await qb.getCount();
-    const data = await qb
+    const rows = await qb
       .orderBy('l.createdAt', 'DESC')
       .take(size)
       .skip((page - 1) * size)
       .getMany();
-    return { data, total, page, size };
+    return { data: rows.map((r) => this.toLogView(r)), total, page, size };
   }
 
   async overview(): Promise<Record<string, unknown>> {
@@ -77,7 +96,7 @@ export class AdminOpsService {
     ]);
 
     const recentLogs = await logRepo.find({
-      select: ['id', 'username', 'action', 'target', 'ip', 'createdAt'],
+      select: ['id', 'actorType', 'username', 'action', 'target', 'ip', 'createdAt'],
       order: { createdAt: 'DESC' },
       take: 8,
     });
@@ -100,7 +119,7 @@ export class AdminOpsService {
       admin_sessions_active: adminSessionsActive,
       provider_sessions: providerSessions,
       legacy_users: legacyUsers,
-      recent_logs: recentLogs,
+      recent_logs: recentLogs.map((r) => this.toLogView(r)),
     };
   }
 

@@ -67,7 +67,7 @@ export class ClientItem {
   enabled!: boolean;
 
   @ApiPropertyOptional({ nullable: true, description: '归属开发者 ID；管理端直接创建时为 null' })
-  developer_id!: number | null;
+  developer_id!: string | null;
 
   @ApiPropertyOptional({ nullable: true, description: '归属开发者邮箱' })
   developer_email?: string | null;

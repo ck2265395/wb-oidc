@@ -22,6 +22,16 @@
         @keyup.enter="loadLogs"
         @clear="loadLogs"
       />
+      <el-select
+        v-model="filters.actor_type"
+        :placeholder="t('console.audit.actorType')"
+        clearable
+        style="width: 140px"
+        @change="loadLogs"
+      >
+        <el-option :label="t('console.audit.actorAdmin')" value="admin" />
+        <el-option :label="t('console.audit.actorDeveloper')" value="developer" />
+      </el-select>
       <el-button type="primary" @click="loadLogs">{{ t('console.common.search') }}</el-button>
       <el-button @click="resetFilters">{{ t('console.common.reset') }}</el-button>
     </div>
@@ -30,7 +40,14 @@
       <el-table-column :label="t('console.common.time')" width="170">
         <template #default="{ row }">{{ fmtTime(row.created_at) }}</template>
       </el-table-column>
-      <el-table-column prop="username" :label="t('console.common.operator')" width="110" />
+      <el-table-column :label="t('console.audit.colActorType')" width="90">
+        <template #default="{ row }">
+          <el-tag size="small" :type="row.actor_type === 'developer' ? 'warning' : 'primary'">
+            {{ row.actor_type === 'developer' ? t('console.audit.actorDeveloper') : t('console.audit.actorAdmin') }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column prop="username" :label="t('console.common.operator')" min-width="180" show-overflow-tooltip />
       <el-table-column prop="action" :label="t('console.common.action')" min-width="150">
         <template #default="{ row }">
           <el-tag size="small" :type="actionTag(row.action)">{{ row.action }}</el-tag>
@@ -39,7 +56,7 @@
       <el-table-column prop="target" :label="t('console.common.target')" min-width="120" />
       <el-table-column :label="t('console.audit.colDetail')" min-width="220">
         <template #default="{ row }">
-          <el-popover v-if="row.detail" placement="top" width="420" trigger="hover">
+          <el-popover v-if="row.detail" placement="top" width="420" trigger="click">
             <pre class="detail-json">{{ JSON.stringify(row.detail, null, 2) }}</pre>
             <template #reference>
               <el-link size="small" type="primary">{{ t('console.common.view') }}</el-link>
@@ -76,7 +93,8 @@ import api from '../../api';
 const { t } = useI18n();
 
 interface LogRow {
-  id: number;
+  id: string;
+  actor_type: 'admin' | 'developer';
   username: string | null;
   action: string;
   target: string | null;
@@ -90,7 +108,7 @@ const logs = ref<LogRow[]>([]);
 const total = ref(0);
 const page = ref(1);
 const size = ref(20);
-const filters = ref({ action: '', username: '' });
+const filters = ref({ action: '', username: '', actor_type: '' });
 
 onMounted(loadLogs);
 
@@ -103,6 +121,7 @@ async function loadLogs() {
         size: size.value,
         ...(filters.value.action ? { action: filters.value.action } : {}),
         ...(filters.value.username ? { username: filters.value.username } : {}),
+        ...(filters.value.actor_type ? { actor_type: filters.value.actor_type } : {}),
       },
     });
     logs.value = data.data;
@@ -113,7 +132,7 @@ async function loadLogs() {
 }
 
 function resetFilters() {
-  filters.value = { action: '', username: '' };
+  filters.value = { action: '', username: '', actor_type: '' };
   page.value = 1;
   loadLogs();
 }

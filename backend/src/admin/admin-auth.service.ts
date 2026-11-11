@@ -72,7 +72,7 @@ export class AdminAuthService {
     }
     if (!row.enabled) {
       await this.audit.log(
-        { id: Number(row.id), username: row.username, displayName: row.displayName, role: row.role },
+        { id: row.id, username: row.username, displayName: row.displayName, role: row.role },
         'admin.login.failed',
         row.username,
         { reason: 'disabled' },
@@ -84,7 +84,7 @@ export class AdminAuthService {
     await this.adminRepo.update({ id: row.id }, { lastLoginAt: new Date() });
 
     const admin: AdminPrincipal = {
-      id: Number(row.id),
+      id: row.id,
       username: row.username,
       displayName: row.displayName,
       role: row.role,
@@ -124,7 +124,7 @@ export class AdminAuthService {
     }
 
     const admin: AdminPrincipal = {
-      id: Number(row.id),
+      id: row.id,
       username: row.username,
       displayName: row.displayName,
       role: row.role,
@@ -205,7 +205,7 @@ export class AdminAuthService {
       };
       if (payload.typ !== 'admin_access') throw new Error('wrong token type');
       return {
-        id: Number(payload.sub),
+        id: payload.sub,
         username: payload.username,
         displayName: payload.display_name || payload.username,
         role: (payload.role as AdminRole) || 'operator',
@@ -215,7 +215,7 @@ export class AdminAuthService {
     }
   }
 
-  async me(adminId: number): Promise<AdminView> {
+  async me(adminId: string): Promise<AdminView> {
     const row = await this.adminRepo.findOne({ where: { id: adminId } });
     if (!row) throw new UnauthorizedException('管理员不存在');
     return toAdminView(row);
@@ -224,7 +224,7 @@ export class AdminAuthService {
   private signAccess(admin: AdminPrincipal): string {
     return jwt.sign(
       {
-        sub: String(admin.id),
+        sub: admin.id,
         username: admin.username,
         display_name: admin.displayName,
         role: admin.role,
@@ -236,7 +236,7 @@ export class AdminAuthService {
   }
 
   private async createSession(
-    adminId: number,
+    adminId: string,
     ip?: string,
     userAgent?: string,
   ): Promise<string> {

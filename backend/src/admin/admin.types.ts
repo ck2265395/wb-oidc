@@ -3,7 +3,7 @@ import { OidcAdmin } from '../db/entities';
 export type AdminRole = 'super_admin' | 'operator';
 
 export interface AdminPrincipal {
-  id: number;
+  id: string;
   username: string;
   displayName: string;
   role: AdminRole;
@@ -11,7 +11,7 @@ export interface AdminPrincipal {
 
 /** 对外返回的管理员信息（绝不带 passwordHash） */
 export interface AdminView {
-  id: number;
+  id: string;
   username: string;
   display_name: string;
   role: AdminRole;
@@ -22,7 +22,7 @@ export interface AdminView {
 
 export function toAdminView(row: OidcAdmin): AdminView {
   return {
-    id: Number(row.id),
+    id: row.id,
     username: row.username,
     display_name: row.displayName,
     role: row.role,

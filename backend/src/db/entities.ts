@@ -11,15 +11,8 @@ import {
 } from 'typeorm';
 
 /**
- * BIGINT 读写转 number（id 在安全整数范围内，避免 pg 驱动把 int8 返回成字符串）。
- * 用于普通 BIGINT 列；自增主键列（PrimaryGeneratedColumn 不支持 transformer）
- * 在各 toXxxView / toClientRow 边界处手动 Number() 转换。
+ * 主键统一使用 UUID（随机、不可枚举猜测）；FK 列同为 uuid，无 bigint 转换需求。
  */
-export const bigintToNumber = {
-  to: (v: number | null | undefined) => v,
-  from: (v: unknown) => (v === null || v === undefined ? v : Number(v)),
-};
-
 export type ClientStatus = 'pending' | 'approved' | 'rejected' | 'suspended';
 export type ClientCategory = 'web_app' | 'mobile_app' | 'mini_program';
 export type AdminRoleType = 'super_admin' | 'operator';
@@ -29,8 +22,8 @@ export type DeveloperQualification = 'none' | 'pending' | 'approved' | 'rejected
 /** 第三方应用（OIDC Client）。client_secret 落库前已 AES-256-GCM 加密。 */
 @Entity('oidc_clients')
 export class OidcClient {
-  @PrimaryGeneratedColumn('increment', { type: 'bigint' })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   @Column({ name: 'client_id', type: 'varchar', length: 64, unique: true })
   clientId: string;
@@ -92,13 +85,8 @@ export class OidcClient {
   @Column({ type: 'boolean', default: true })
   enabled: boolean;
 
-  @Column({
-    name: 'developer_id',
-    type: 'bigint',
-    nullable: true,
-    transformer: bigintToNumber,
-  })
-  developerId: number | null;
+  @Column({ name: 'developer_id', type: 'uuid', nullable: true })
+  developerId: string | null;
 
   @Column({ type: 'varchar', length: 16, default: 'approved' })
   status: ClientStatus;
@@ -148,8 +136,8 @@ export class OidcProviderState {
 /** 管理端账号（独立于老系统，密码 bcrypt） */
 @Entity('oidc_admin')
 export class OidcAdmin {
-  @PrimaryGeneratedColumn('increment', { type: 'bigint' })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   @Column({ type: 'varchar', length: 64, unique: true })
   username: string;
@@ -181,11 +169,11 @@ export class OidcAdmin {
 @Index('idx_admin_session_admin', ['adminId'])
 @Index('idx_admin_session_expires', ['expiresAt'])
 export class OidcAdminSession {
-  @PrimaryGeneratedColumn('increment', { type: 'bigint' })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
-  @Column({ name: 'admin_id', type: 'bigint', transformer: bigintToNumber })
-  adminId: number;
+  @Column({ name: 'admin_id', type: 'uuid' })
+  adminId: string;
 
   @ManyToOne(() => OidcAdmin, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'admin_id' })
@@ -210,20 +198,19 @@ export class OidcAdminSession {
   createdAt: Date;
 }
 
-/** 管理端/开发者侧操作审计（共用一张表，开发者以 username 前缀 developer: 区分） */
+/** 管理端/开发者侧操作审计（共用一张表，actor_type 显式区分操作者类型） */
 @Entity('oidc_admin_log')
 @Index('idx_admin_log_created', ['createdAt'])
 export class OidcAdminLog {
-  @PrimaryGeneratedColumn('increment', { type: 'bigint' })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
-  @Column({
-    name: 'admin_id',
-    type: 'bigint',
-    nullable: true,
-    transformer: bigintToNumber,
-  })
-  adminId: number | null;
+  /** 操作者类型：admin 管理端 / developer 开发者门户（与 username 前缀无关，显式区分） */
+  @Column({ name: 'actor_type', type: 'varchar', length: 16, default: 'admin' })
+  actorType: 'admin' | 'developer';
+
+  @Column({ name: 'admin_id', type: 'uuid', nullable: true })
+  adminId: string | null;
 
   @Column({ type: 'varchar', length: 64, nullable: true })
   username: string | null;
@@ -249,8 +236,8 @@ export class OidcAdminLog {
 @Index('idx_developer_status', ['status'])
 @Index('idx_developer_dev_status', ['developerStatus'])
 export class OidcDeveloper {
-  @PrimaryGeneratedColumn('increment', { type: 'bigint' })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   @Column({ type: 'varchar', length: 128, unique: true })
   email: string;
@@ -297,11 +284,11 @@ export class OidcDeveloper {
 @Index('idx_dev_session_developer', ['developerId'])
 @Index('idx_dev_session_expires', ['expiresAt'])
 export class OidcDeveloperSession {
-  @PrimaryGeneratedColumn('increment', { type: 'bigint' })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
-  @Column({ name: 'developer_id', type: 'bigint', transformer: bigintToNumber })
-  developerId: number;
+  @Column({ name: 'developer_id', type: 'uuid' })
+  developerId: string;
 
   @ManyToOne(() => OidcDeveloper, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'developer_id' })

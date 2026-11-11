@@ -7,7 +7,7 @@ import { OidcClient, OidcDeveloper } from '../db/entities';
 import { encryptSecret, decryptSecret } from '../common/secret-cipher';
 
 export interface ClientRow {
-  id: number;
+  id: string;
   client_id: string;
   client_secret: string;
   client_name: string;
@@ -19,7 +19,7 @@ export interface ClientRow {
   response_types: string[];
   scope: string;
   enabled: boolean;
-  developer_id: number | null;
+  developer_id: string | null;
   developer_email?: string | null;
   status: 'pending' | 'approved' | 'rejected' | 'suspended';
   reject_reason: string;
@@ -50,7 +50,7 @@ export interface CreateClientDto {
 /** 实体 → 对外 snake_case 行（API 响应结构保持不变，secret 由调用方按需剥离） */
 export function toClientRow(e: OidcClient, developerEmail?: string | null): ClientRow {
   return {
-    id: Number(e.id),
+    id: e.id,
     client_id: e.clientId,
     client_secret: e.clientSecret,
     client_name: e.clientName,
@@ -93,17 +93,17 @@ export class ClientsService {
   async list(): Promise<ClientRow[]> {
     const rows = await this.repo.find({ order: { createdAt: 'DESC' } });
     // 补申请人邮箱：admin 列表页需要展示归属开发者
-    const devIds = [...new Set(rows.map((r) => r.developerId).filter((v): v is number => v != null))];
+    const devIds = [...new Set(rows.map((r) => r.developerId).filter((v): v is string => v != null))];
     const devs = devIds.length
       ? await this.ds
           .getRepository(OidcDeveloper)
           .find({ where: { id: In(devIds) }, select: { id: true, email: true } })
       : [];
-    const emailMap = new Map(devs.map((d) => [Number(d.id), d.email]));
-    return rows.map((e) => toClientRow(e, emailMap.get(Number(e.developerId)) ?? null));
+    const emailMap = new Map(devs.map((d) => [d.id, d.email]));
+    return rows.map((e) => toClientRow(e, e.developerId ? emailMap.get(e.developerId) ?? null : null));
   }
 
-  async listByDeveloper(developerId: number): Promise<ClientRow[]> {
+  async listByDeveloper(developerId: string): Promise<ClientRow[]> {
     const rows = await this.repo.find({
       where: { developerId },
       order: { createdAt: 'DESC' },
@@ -126,7 +126,7 @@ export class ClientsService {
 
   async create(
     dto: CreateClientDto,
-    opts?: { developerId?: number; status?: 'pending' | 'approved' },
+    opts?: { developerId?: string; status?: 'pending' | 'approved' },
   ): Promise<{ client: ClientRow; secret: string }> {
     if (!dto.client_name) throw new BizException(ERROR_CODE.APP_NAME_REQUIRED);
     if (!Array.isArray(dto.redirect_uris) || dto.redirect_uris.length === 0) {
@@ -223,7 +223,7 @@ export class ClientsService {
       icp_number?: string;
       tags?: string[];
     },
-    opts?: { revertToPending?: boolean; developerId?: number },
+    opts?: { revertToPending?: boolean; developerId?: string },
   ): Promise<ClientRow> {
     const current = await this.repo.findOne({ where: { clientId } });
     if (!current) throw new BizException(ERROR_CODE.APP_NOT_FOUND, `应用 ${clientId} 不存在`);
@@ -340,11 +340,11 @@ export class ClientsService {
   }
 
   /** 开发者归属校验：不是自己的应用直接按不存在处理（不暴露存在性） */
-  assertOwned(row: ClientRow, developerId: number): void {
+  assertOwned(row: ClientRow, developerId: string): void {
     const owner = row.developer_id === null || row.developer_id === undefined
       ? null
-      : Number(row.developer_id);
-    if (owner !== Number(developerId)) {
+      : String(row.developer_id);
+    if (owner !== developerId) {
       throw new BizException(ERROR_CODE.APP_NOT_FOUND, `应用 ${row.client_id} 不存在`);
     }
   }

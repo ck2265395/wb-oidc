@@ -65,7 +65,7 @@ export class AdminUsersService {
     }
   }
 
-  async update(id: number, dto: UpdateAdminDto, operatorId: number): Promise<AdminView> {
+  async update(id: string, dto: UpdateAdminDto, operatorId: string): Promise<AdminView> {
     const current = await this.getRow(id);
     const nextRole = dto.role ?? current.role;
     const nextEnabled = dto.enabled ?? current.enabled;
@@ -90,7 +90,7 @@ export class AdminUsersService {
     return toAdminView(await this.getRow(id));
   }
 
-  async resetPassword(id: number, password: string): Promise<void> {
+  async resetPassword(id: string, password: string): Promise<void> {
     const current = await this.getRow(id);
     assertPasswordStrength(password, current.username);
     const hash = await bcrypt.hash(password, 10);
@@ -103,7 +103,7 @@ export class AdminUsersService {
     });
   }
 
-  private async getRow(id: number): Promise<OidcAdmin> {
+  private async getRow(id: string): Promise<OidcAdmin> {
     const row = await this.repo.findOne({ where: { id } });
     if (!row) throw new NotFoundException('管理员不存在');
     return row;
