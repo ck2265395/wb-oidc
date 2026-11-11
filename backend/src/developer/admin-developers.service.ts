@@ -1,6 +1,8 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { DataSource, In } from 'typeorm';
 import { OidcDeveloper } from '../db/entities';
+import { BizException } from '../common/biz.exception';
+import { ERROR_CODE } from '../common/error-code';
 
 /**
  * 管理端用户 / 开发者管理（仅 super_admin 可写，权限校验在控制器层）。
@@ -39,7 +41,7 @@ export class AdminDevelopersService {
       .where('id = :id AND developer_status = :pending', { id, pending: 'pending' })
       .execute();
     if (!result.affected) {
-      throw new BadRequestException('该用户没有待审核的开发者资格申请');
+      throw new BizException(ERROR_CODE.DEVELOPER_NO_PENDING);
     }
     return this.getRow(id);
   }
@@ -54,13 +56,13 @@ export class AdminDevelopersService {
       { id, status: In(['active', 'suspended']) },
       { status: next, rejectReason: reason },
     );
-    if (!result.affected) throw new BadRequestException(`用户 ${id} 不存在`);
+    if (!result.affected) throw new BizException(ERROR_CODE.DEVELOPER_NOT_FOUND, `用户 ${id} 不存在`);
     return this.getRow(id);
   }
 
   private async getRow(id: number): Promise<OidcDeveloper> {
     const row = await this.repo.findOne({ where: { id } });
-    if (!row) throw new BadRequestException(`用户 ${id} 不存在`);
+    if (!row) throw new BizException(ERROR_CODE.DEVELOPER_NOT_FOUND, `用户 ${id} 不存在`);
     return row;
   }
 }

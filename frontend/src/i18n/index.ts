@@ -12,7 +12,7 @@ export const LOCALES: Array<{ value: AppLocale; label: string }> = [
   { value: 'en-US', label: 'English' },
 ];
 
-const STORAGE_KEY = 'wb_oidc_locale';
+export const STORAGE_KEY = 'wb_oidc_locale';
 
 /** element-plus 组件库语言包映射 */
 export const EP_LOCALES: Record<AppLocale, typeof zhCn> = {

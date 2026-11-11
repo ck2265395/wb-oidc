@@ -1,4 +1,6 @@
-import { Inject, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { BizException } from '../common/biz.exception';
+import { ERROR_CODE } from '../common/error-code';
 import { randomBytes } from 'crypto';
 import { DataSource, In } from 'typeorm';
 import { OidcClient, OidcDeveloper } from '../db/entities';
@@ -126,13 +128,13 @@ export class ClientsService {
     dto: CreateClientDto,
     opts?: { developerId?: number; status?: 'pending' | 'approved' },
   ): Promise<{ client: ClientRow; secret: string }> {
-    if (!dto.client_name) throw new BadRequestException('client_name 必填');
+    if (!dto.client_name) throw new BizException(ERROR_CODE.APP_NAME_REQUIRED);
     if (!Array.isArray(dto.redirect_uris) || dto.redirect_uris.length === 0) {
-      throw new BadRequestException('redirect_uris 至少需要一个回调地址');
+      throw new BizException(ERROR_CODE.PARAM_INVALID, 'redirect_uris 至少需要一个回调地址');
     }
     for (const uri of dto.redirect_uris) {
       if (!/^https?:\/\/.+/i.test(uri)) {
-        throw new BadRequestException(`回调地址不合法: ${uri}`);
+        throw new BizException(ERROR_CODE.APP_REDIRECT_URI_INVALID, `回调地址不合法: ${uri}`);
       }
     }
 
@@ -148,7 +150,7 @@ export class ClientsService {
     const description = (dto.description || '').slice(0, 200);
     const website = (dto.website || '').trim();
     if (website && !/^https?:\/\/.+/i.test(website)) {
-      throw new BadRequestException('官网域名不合法，需以 http(s):// 开头');
+      throw new BizException(ERROR_CODE.PARAM_INVALID, '官网域名不合法，需以 http(s):// 开头');
     }
     const icpNumber = (dto.icp_number || '').trim();
     const tags = Array.isArray(dto.tags)
@@ -156,7 +158,7 @@ export class ClientsService {
       : [];
     const logo = (dto.logo || '').trim();
     if (logo && logo.length > 700000) {
-      throw new BadRequestException('应用图标过大，请上传 100×100 以内的图片');
+      throw new BizException(ERROR_CODE.PARAM_INVALID, '应用图标过大，请上传 100×100 以内的图片');
     }
 
     // 企业开发者创建应用必须填写 ICP 备案号（参照 QQ 开放平台）
@@ -166,7 +168,7 @@ export class ClientsService {
         select: { id: true, developerType: true },
       });
       if (dev?.developerType === 'enterprise' && !icpNumber) {
-        throw new BadRequestException('企业开发者创建应用必须填写 ICP 备案号');
+        throw new BizException(ERROR_CODE.APP_ICP_REQUIRED);
       }
     }
 
@@ -203,7 +205,7 @@ export class ClientsService {
   async toggleEnabled(clientId: string, enabled: boolean): Promise<ClientRow> {
     await this.repo.update({ clientId }, { enabled });
     const e = await this.repo.findOne({ where: { clientId } });
-    if (!e) throw new NotFoundException(`client ${clientId} 不存在`);
+    if (!e) throw new BizException(ERROR_CODE.APP_NOT_FOUND, `应用 ${clientId} 不存在`);
     return toClientRow(e);
   }
 
@@ -224,24 +226,24 @@ export class ClientsService {
     opts?: { revertToPending?: boolean; developerId?: number },
   ): Promise<ClientRow> {
     const current = await this.repo.findOne({ where: { clientId } });
-    if (!current) throw new NotFoundException(`client ${clientId} 不存在`);
+    if (!current) throw new BizException(ERROR_CODE.APP_NOT_FOUND, `应用 ${clientId} 不存在`);
 
     const patch: Partial<OidcClient> = {};
     if (dto.client_name !== undefined) {
       const name = String(dto.client_name).trim();
       if (!name || name.length > 64) {
-        throw new BadRequestException('client_name 需为 1-64 字符');
+        throw new BizException(ERROR_CODE.PARAM_INVALID, 'client_name 需为 1-64 字符');
       }
       patch.clientName = name;
     }
     if (dto.redirect_uris !== undefined) {
       const uris = dto.redirect_uris;
       if (!Array.isArray(uris) || uris.length === 0) {
-        throw new BadRequestException('redirect_uris 至少需要一个回调地址');
+        throw new BizException(ERROR_CODE.PARAM_INVALID, 'redirect_uris 至少需要一个回调地址');
       }
       for (const uri of uris) {
         if (!/^https?:\/\/.+/i.test(uri)) {
-          throw new BadRequestException(`回调地址不合法: ${uri}`);
+          throw new BizException(ERROR_CODE.APP_REDIRECT_URI_INVALID, `回调地址不合法: ${uri}`);
         }
       }
       patch.redirectUris = uris;
@@ -251,7 +253,7 @@ export class ClientsService {
         .split(/\s+/)
         .filter(Boolean);
       if (!scopes.includes('openid')) {
-        throw new BadRequestException('scope 必须包含 openid');
+        throw new BizException(ERROR_CODE.APP_SCOPE_INVALID);
       }
       patch.scope = scopes.join(' ');
     }
@@ -280,7 +282,7 @@ export class ClientsService {
     if (dto.website !== undefined) {
       const site = String(dto.website).trim();
       if (site && !/^https?:\/\/.+/i.test(site)) {
-        throw new BadRequestException('官网域名不合法，需以 http(s):// 开头');
+        throw new BizException(ERROR_CODE.PARAM_INVALID, '官网域名不合法，需以 http(s):// 开头');
       }
       patch.website = site;
     }
@@ -290,7 +292,7 @@ export class ClientsService {
     if (dto.logo !== undefined) {
       const logo = String(dto.logo).trim();
       if (logo.length > 700000) {
-        throw new BadRequestException('应用图标过大，请上传 100×100 以内的图片');
+        throw new BizException(ERROR_CODE.PARAM_INVALID, '应用图标过大，请上传 100×100 以内的图片');
       }
       patch.logo = logo;
     }
@@ -300,7 +302,7 @@ export class ClientsService {
         : [];
     }
     if (!Object.keys(patch).length) {
-      throw new BadRequestException('没有可更新的字段');
+      throw new BizException(ERROR_CODE.PARAM_INVALID, '没有可更新的字段');
     }
 
     // 企业开发者清空 ICP 备案号时拒绝（创建与编辑都需保留）
@@ -310,7 +312,7 @@ export class ClientsService {
         select: { id: true, developerType: true },
       });
       if (dev?.developerType === 'enterprise') {
-        throw new BadRequestException('企业开发者应用必须保留 ICP 备案号');
+        throw new BizException(ERROR_CODE.APP_ICP_REQUIRED, '企业开发者应用必须保留 ICP 备案号');
       }
     }
 
@@ -321,7 +323,7 @@ export class ClientsService {
     }
     await this.repo.update({ clientId }, patch);
     const updated = await this.repo.findOne({ where: { clientId } });
-    if (!updated) throw new NotFoundException(`client ${clientId} 不存在`);
+    if (!updated) throw new BizException(ERROR_CODE.APP_NOT_FOUND, `应用 ${clientId} 不存在`);
     return toClientRow(updated);
   }
 
@@ -333,7 +335,7 @@ export class ClientsService {
   ): Promise<ClientRow> {
     await this.repo.update({ clientId }, { status, rejectReason: reason });
     const e = await this.repo.findOne({ where: { clientId } });
-    if (!e) throw new NotFoundException(`client ${clientId} 不存在`);
+    if (!e) throw new BizException(ERROR_CODE.APP_NOT_FOUND, `应用 ${clientId} 不存在`);
     return toClientRow(e);
   }
 
@@ -343,7 +345,7 @@ export class ClientsService {
       ? null
       : Number(row.developer_id);
     if (owner !== Number(developerId)) {
-      throw new NotFoundException(`client ${row.client_id} 不存在`);
+      throw new BizException(ERROR_CODE.APP_NOT_FOUND, `应用 ${row.client_id} 不存在`);
     }
   }
 
@@ -351,7 +353,7 @@ export class ClientsService {
     const secret = randomBytes(24).toString('hex');
     await this.repo.update({ clientId }, { clientSecret: encryptSecret(secret) });
     const e = await this.repo.findOne({ where: { clientId } });
-    if (!e) throw new NotFoundException(`client ${clientId} 不存在`);
+    if (!e) throw new BizException(ERROR_CODE.APP_NOT_FOUND, `应用 ${clientId} 不存在`);
     return { client: toClientRow(e), secret };
   }
 
@@ -361,14 +363,14 @@ export class ClientsService {
    */
   async revealSecret(clientId: string): Promise<string | null> {
     const row = await this.get(clientId);
-    if (!row) throw new NotFoundException(`client ${clientId} 不存在`);
+    if (!row) throw new BizException(ERROR_CODE.APP_NOT_FOUND, `应用 ${clientId} 不存在`);
     if (row.token_endpoint_auth_method === 'none' || !row.client_secret) return null;
     return decryptSecret(row.client_secret);
   }
 
   async remove(clientId: string): Promise<void> {
     const result = await this.repo.delete({ clientId });
-    if (!result.affected) throw new NotFoundException(`client ${clientId} 不存在`);
+    if (!result.affected) throw new BizException(ERROR_CODE.APP_NOT_FOUND, `应用 ${clientId} 不存在`);
   }
 
   /** adapter 用的 OIDC 客户端配置 */

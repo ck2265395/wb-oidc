@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Get,
@@ -20,6 +19,8 @@ import { DeveloperAuthService } from './developer-auth.service';
 import { AdminDevelopersService } from './admin-developers.service';
 import { toDeveloperView } from './developer.types';
 import { DevReviewBody, DevStatusBody, DeveloperItemRes, DeveloperListRes } from './developer.dto';
+import { BizException } from '../common/biz.exception';
+import { ERROR_CODE } from '../common/error-code';
 
 /**
  * 管理端用户 / 开发者管理（仅 super_admin 可写）：
@@ -39,7 +40,7 @@ export class AdminDevelopersController {
 
   private assertSuper(admin: AdminPrincipal): void {
     if (admin.role !== 'super_admin') {
-      throw new BadRequestException('需要超级管理员权限');
+      throw new BizException(ERROR_CODE.FORBIDDEN, '需要超级管理员权限');
     }
   }
 
@@ -70,11 +71,11 @@ export class AdminDevelopersController {
     this.assertSuper(admin);
     const action = body?.action;
     if (action !== 'approve' && action !== 'reject') {
-      throw new BadRequestException('action 必须是 approve 或 reject');
+      throw new BizException(ERROR_CODE.PARAM_INVALID, 'action 必须是 approve 或 reject');
     }
     const reason = String(body?.reason || '').trim();
     if (action === 'reject' && !reason) {
-      throw new BadRequestException('驳回必须填写理由');
+      throw new BizException(ERROR_CODE.PARAM_INVALID, '驳回必须填写理由');
     }
     const next = action === 'approve' ? 'approved' : 'rejected';
     const row = await this.service.review(id, next, action === 'approve' ? '' : reason);
@@ -101,11 +102,11 @@ export class AdminDevelopersController {
     this.assertSuper(admin);
     const next = body?.status;
     if (!next || !['active', 'suspended'].includes(next)) {
-      throw new BadRequestException('status 必须是 active 或 suspended');
+      throw new BizException(ERROR_CODE.PARAM_INVALID, 'status 必须是 active 或 suspended');
     }
     const reason = String(body?.reason || '');
     if (next === 'suspended' && !reason) {
-      throw new BadRequestException('停用必须填写理由');
+      throw new BizException(ERROR_CODE.PARAM_INVALID, '停用必须填写理由');
     }
     const row = await this.service.setStatus(id, next, next === 'active' ? '' : reason);
     // 账号状态变化即吊销全部会话，强制重新登录

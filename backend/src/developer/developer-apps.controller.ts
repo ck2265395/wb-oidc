@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Get,
@@ -7,7 +6,6 @@ import {
   Patch,
   Post,
   Req,
-  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { Request } from 'express';
@@ -30,6 +28,8 @@ import {
   UpdateClientBody,
 } from '../clients/clients.dto';
 import { DevRevealSecretBody } from './developer.dto';
+import { BizException } from '../common/biz.exception';
+import { ERROR_CODE } from '../common/error-code';
 
 /** 开发者自己的应用（返回前剥离 secret 与内部字段） */
 function safeClient(row: ClientRow) {
@@ -69,7 +69,7 @@ export class DeveloperAppsController {
   async getOne(@Req() req: Request, @Param('clientId') clientId: string) {
     const dev = currentDeveloper(req);
     const row = await this.clients.get(clientId);
-    if (!row) throw new BadRequestException(`应用 ${clientId} 不存在`);
+    if (!row) throw new BizException(ERROR_CODE.APP_NOT_FOUND, `应用 ${clientId} 不存在`);
     this.clients.assertOwned(row, dev.id);
     return { data: safeClient(row) };
   }
@@ -92,14 +92,14 @@ export class DeveloperAppsController {
   ) {
     const dev = currentDeveloper(req);
     const row = await this.clients.get(clientId);
-    if (!row) throw new BadRequestException(`应用 ${clientId} 不存在`);
+    if (!row) throw new BizException(ERROR_CODE.APP_NOT_FOUND, `应用 ${clientId} 不存在`);
     this.clients.assertOwned(row, dev.id);
 
-    if (!body?.password) throw new BadRequestException('请输入登录密码以验证身份');
+    if (!body?.password) throw new BizException(ERROR_CODE.PARAM_INVALID, '请输入登录密码以验证身份');
     const ok = await this.devAuth.verifyPassword(dev.id, body.password);
     if (!ok) {
       await this.audit.logDeveloper(dev, 'developer.reveal_secret.failed', clientId, undefined, req.ip);
-      throw new UnauthorizedException('登录密码不正确');
+      throw new BizException(ERROR_CODE.AUTH_PASSWORD_INCORRECT, '登录密码不正确');
     }
 
     const secret = await this.clients.revealSecret(clientId);
@@ -138,10 +138,10 @@ export class DeveloperAppsController {
     const dev = currentDeveloper(req);
     await this.devAuth.assertDeveloperApproved(dev.id);
     const row = await this.clients.get(clientId);
-    if (!row) throw new BadRequestException(`应用 ${clientId} 不存在`);
+    if (!row) throw new BizException(ERROR_CODE.APP_NOT_FOUND, `应用 ${clientId} 不存在`);
     this.clients.assertOwned(row, dev.id);
     if (row.status === 'pending') {
-      throw new BadRequestException('应用正在审核中，暂不能修改');
+      throw new BizException(ERROR_CODE.APP_UNDER_REVIEW);
     }
     const updated = await this.clients.update(clientId, dto, {
       revertToPending: true,

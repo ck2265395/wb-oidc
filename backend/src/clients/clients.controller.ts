@@ -1,10 +1,8 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
   Get,
-  NotFoundException,
   Param,
   Patch,
   Post,
@@ -32,6 +30,8 @@ import {
   UpdateClientBody,
 } from './clients.dto';
 import { OkRes } from '../common/api.dto';
+import { BizException } from '../common/biz.exception';
+import { ERROR_CODE } from '../common/error-code';
 
 /**
  * 管理端 API：注册/管理第三方应用。
@@ -78,7 +78,7 @@ export class ClientsController {
   ): Promise<{ data: ClientRow }> {
     void admin;
     const row = await this.clientsService.get(clientId);
-    if (!row) throw new NotFoundException(`client ${clientId} 不存在`);
+    if (!row) throw new BizException(ERROR_CODE.APP_NOT_FOUND, `应用 ${clientId} 不存在`);
     return { data: row };
   }
 
@@ -145,10 +145,10 @@ export class ClientsController {
     const action = body?.action;
     const reason = String(body?.reason || '');
     if (!action || !['approve', 'reject', 'suspend'].includes(action)) {
-      throw new BadRequestException('action 必须是 approve / reject / suspend');
+      throw new BizException(ERROR_CODE.PARAM_INVALID, 'action 必须是 approve / reject / suspend');
     }
     if (action !== 'approve' && !reason) {
-      throw new BadRequestException('拒绝或停用必须填写理由');
+      throw new BizException(ERROR_CODE.PARAM_INVALID, '拒绝或停用必须填写理由');
     }
     const status =
       action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : 'suspended';

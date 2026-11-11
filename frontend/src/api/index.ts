@@ -1,4 +1,5 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import { STORAGE_KEY } from '../i18n';
 
 /** issuer：同源部署时为空字符串，全部走相对路径 */
 export const ISSUER = (import.meta.env.VITE_ISSUER as string) || '';
@@ -38,6 +39,8 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   if (accessToken && config.url?.startsWith('/api/')) {
     config.headers.Authorization = `Bearer ${accessToken}`;
   }
+  // 错误文案国际化：跟随当前界面语言（后端按 language 头返回对应文案）
+  config.headers.language = localStorage.getItem(STORAGE_KEY) || 'zh-CN';
   return config;
 });
 

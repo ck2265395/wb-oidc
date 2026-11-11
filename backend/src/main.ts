@@ -14,6 +14,8 @@ import { loadConfig } from './config/env';
 import { closeDataSource, waitReady } from './db/data-source';
 import { migratePlaintextSecrets } from './common/secret-migration';
 import { startStateCleanup } from './common/state-cleanup';
+import { AllExceptionsFilter } from './common/all-exceptions.filter';
+import { buildErrorCodeDoc } from './common/error-code.doc';
 
 const PROVIDER_PREFIXES = [
   '/auth',
@@ -41,6 +43,8 @@ async function bootstrap(): Promise<void> {
     logger: ['error', 'warn', 'log'],
   });
   app.setGlobalPrefix('api');
+  // 全局异常出口：统一 {code, message, data} 信封（code=0 成功，1MMXX 业务错误码）
+  app.useGlobalFilters(new AllExceptionsFilter());
   // 全局参数校验：自动按 DTO 装饰器校验/转换（class-validator 标准做法）
   app.useGlobalPipes(
     new ValidationPipe({
@@ -65,7 +69,7 @@ async function bootstrap(): Promise<void> {
   if (process.env.NODE_ENV !== 'production') {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('wb-oidc API')
-      .setDescription('OIDC Provider 对外接口文档（开发者端 / 健康检查）')
+      .setDescription('OIDC Provider 对外接口文档（开发者端 / 健康检查）\n\n' + buildErrorCodeDoc())
       .setVersion('0.1')
       .addBearerAuth()
       .build();

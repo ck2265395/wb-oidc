@@ -2,6 +2,26 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { LegacyUserService } from './legacy/legacy-user.service';
 import { AppConfig } from '../config/env';
 import { clearRateLimit, hitRateLimit } from '../common/rate-limiter';
+import { ERROR_CODE, pickLang, pickMessage, ResponseLang } from '../common/error-code';
+
+/** 统一响应信封（与全局异常过滤器一致） */
+interface ErrorEnvelope {
+  code: number;
+  message: string;
+  data: null;
+}
+
+/** 请求语言：language 头优先，回退 accept-language，最终 zh-CN（与全局过滤器一致） */
+function reqLang(req: Request): ResponseLang {
+  return pickLang(
+    (req.headers['language'] as string | undefined) ?? req.headers['accept-language'],
+  );
+}
+
+/** 按错误码定义输出多语言信封 */
+function errorEnvelope(def: { code: number; httpStatus: number; message: { zhCN: string; enUS: string } }, lang: ResponseLang): ErrorEnvelope {
+  return { code: def.code, message: pickMessage(def.message, lang), data: null };
+}
 
 /**
  * OIDC interaction 路由（挂载在 provider.callback 之前）：
@@ -43,10 +63,7 @@ export function interactionRouter(
       const rl = config.rateLimit;
       const loginKey = `oidclogin:${String(username || '').trim()}:${req.ip}`;
       if (!hitRateLimit(loginKey, rl.loginMax, rl.loginWindowMs)) {
-        res.status(429).json({
-          error: 'too_many_attempts',
-          message: '登录尝试过于频繁，请稍后再试',
-        });
+        res.status(429).json(errorEnvelope(ERROR_CODE.TOO_MANY_REQUESTS, reqLang(req)));
         return;
       }
       const user = await legacyUserService.verifyLogin(
@@ -54,10 +71,7 @@ export function interactionRouter(
         String(password || ''),
       );
       if (!user) {
-        res.status(401).json({
-          error: 'invalid_credentials',
-          message: '用户名或密码错误',
-        });
+        res.status(401).json(errorEnvelope(ERROR_CODE.AUTH_INVALID_CREDENTIALS, reqLang(req)));
         return;
       }
       clearRateLimit(loginKey);
@@ -83,7 +97,7 @@ export function interactionRouter(
       const details = (await provider.interactionDetails(req, res)) as any;
       const { params, session } = details;
       if (!session || !session.accountId) {
-        res.status(400).json({ error: 'session_missing', message: '登录会话已失效，请重新登录' });
+        res.status(401).json(errorEnvelope(ERROR_CODE.AUTH_SESSION_REVOKED, reqLang(req)));
         return;
       }
       const grant = new provider.Grant({
@@ -126,6 +140,12 @@ export function interactionRouter(
   // 交互页面（SPA）
   router.get('/interaction/:uid', (_req, res) => {
     res.sendFile(`${distDir}/index.html`);
+  });
+
+  // 路由级错误兜底：next(err) 的未捕获异常也输出统一信封（10000），不落到 express 默认 HTML 错误页
+  router.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
+    void err;
+    res.status(500).json(errorEnvelope(ERROR_CODE.SYSTEM_ERROR, reqLang(req)));
   });
 
   return router;

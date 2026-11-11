@@ -1,10 +1,6 @@
 import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
   Inject,
   Injectable,
-  UnauthorizedException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
@@ -13,6 +9,8 @@ import { DataSource, In, IsNull } from 'typeorm';
 import { loadConfig } from '../config/env';
 import { OidcDeveloper, OidcDeveloperSession } from '../db/entities';
 import { DeveloperPrincipal, DeveloperView, toDeveloperView } from './developer.types';
+import { BizException } from '../common/biz.exception';
+import { ERROR_CODE } from '../common/error-code';
 
 const DUMMY_HASH = bcrypt.hashSync('dummy-password-for-timing', 10);
 
@@ -42,7 +40,7 @@ export class DeveloperAuthService {
   async register(email: string, password: string, ip?: string): Promise<void> {
     const mail = (email || '').trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
-      throw new BadRequestException('邮箱格式不正确');
+      throw new BizException(ERROR_CODE.DEVELOPER_EMAIL_INVALID);
     }
     this.assertPassword(password);
     const hash = await bcrypt.hash(password, 10);
@@ -56,7 +54,7 @@ export class DeveloperAuthService {
     } catch (err) {
       const e = err as { code?: string; driverError?: { code?: string } };
       if (e?.code === '23505' || e?.driverError?.code === '23505') {
-        throw new ConflictException('该邮箱已注册');
+        throw new BizException(ERROR_CODE.DEVELOPER_EMAIL_EXISTS);
       }
       throw err;
     }
@@ -74,10 +72,13 @@ export class DeveloperAuthService {
     const hash = row?.passwordHash ?? DUMMY_HASH;
     const ok = bcrypt.compareSync(password || '', hash);
     if (!row || !ok) {
-      throw new UnauthorizedException('邮箱或密码不正确');
+      throw new BizException(ERROR_CODE.AUTH_INVALID_CREDENTIALS, '邮箱或密码不正确');
     }
     if (row.status === 'suspended') {
-      throw new ForbiddenException(`账号已被停用${row.rejectReason ? `：${row.rejectReason}` : ''}`);
+      throw new BizException(
+        ERROR_CODE.AUTH_ACCOUNT_SUSPENDED,
+        `账号已被停用${row.rejectReason ? `：${row.rejectReason}` : ''}`,
+      );
     }
 
     await this.repo.update({ id: row.id }, { lastLoginAt: new Date() });
@@ -104,7 +105,7 @@ export class DeveloperAuthService {
   }
 
   async refresh(rawToken: string, ip?: string, userAgent?: string) {
-    if (!rawToken) throw new UnauthorizedException('缺少刷新令牌');
+    if (!rawToken) throw new BizException(ERROR_CODE.AUTH_REFRESH_TOKEN_MISSING);
     const hash = crypto.createHash('sha256').update(rawToken).digest('hex');
     const session = await this.sessionRepo.findOne({
       where: { tokenHash: hash },
@@ -112,10 +113,10 @@ export class DeveloperAuthService {
     });
     const row = session?.developer;
     if (!session || !row || session.revokedAt || session.expiresAt.getTime() < Date.now()) {
-      throw new UnauthorizedException('刷新令牌无效或已过期，请重新登录');
+      throw new BizException(ERROR_CODE.AUTH_REFRESH_TOKEN_INVALID);
     }
     if (row.status !== 'active') {
-      throw new ForbiddenException('账号当前不可用，请重新登录');
+      throw new BizException(ERROR_CODE.AUTH_ACCOUNT_SUSPENDED, '账号当前不可用，请重新登录');
     }
     await this.sessionRepo.update({ id: session.id }, { revokedAt: new Date() });
     const principal = this.principal(row);
@@ -159,13 +160,13 @@ export class DeveloperAuthService {
         developer_type: payload.developer_type,
       };
     } catch {
-      throw new UnauthorizedException('登录已失效，请重新登录');
+      throw new BizException(ERROR_CODE.AUTH_SESSION_REVOKED);
     }
   }
 
   async me(id: number): Promise<DeveloperView> {
     const row = await this.repo.findOne({ where: { id } });
-    if (!row) throw new UnauthorizedException('用户不存在');
+    if (!row) throw new BizException(ERROR_CODE.AUTH_USER_NOT_FOUND);
     return toDeveloperView(row);
   }
 
@@ -198,12 +199,12 @@ export class DeveloperAuthService {
     if (!result.affected) {
       const current = await this.me(id);
       if (current.developer_status === 'pending') {
-        throw new BadRequestException('申请正在审核中，请耐心等待');
+        throw new BizException(ERROR_CODE.DEVELOPER_ALREADY_APPLIED);
       }
       if (current.developer_status === 'approved') {
-        throw new BadRequestException('你已通过开发者审核，无需重复申请');
+        throw new BizException(ERROR_CODE.DEVELOPER_ALREADY_APPROVED);
       }
-      throw new ForbiddenException('账号当前不可申请开发者资格');
+      throw new BizException(ERROR_CODE.DEVELOPER_ERROR, '账号当前不可申请开发者资格');
     }
     return this.me(id);
   }
@@ -224,7 +225,7 @@ export class DeveloperAuthService {
       { id, status: 'active' },
       { company: org, contact: phone, developerType: devType },
     );
-    if (!result.affected) throw new ForbiddenException('账号已被停用，无法修改资料');
+    if (!result.affected) throw new BizException(ERROR_CODE.AUTH_ACCOUNT_SUSPENDED, '账号已被停用，无法修改资料');
     return this.me(id);
   }
 
@@ -234,18 +235,19 @@ export class DeveloperAuthService {
    */
   async assertDeveloperApproved(id: number): Promise<void> {
     const row = await this.repo.findOne({ where: { id } });
-    if (!row) throw new UnauthorizedException('用户不存在');
+    if (!row) throw new BizException(ERROR_CODE.AUTH_USER_NOT_FOUND);
     if (row.status !== 'active') {
-      throw new ForbiddenException('账号已被停用，无法管理应用');
+      throw new BizException(ERROR_CODE.AUTH_ACCOUNT_SUSPENDED, '账号已被停用，无法管理应用');
     }
     if (row.developerStatus === 'none') {
-      throw new ForbiddenException('请先申请成为开发者，审核通过后才能创建应用');
+      throw new BizException(ERROR_CODE.DEVELOPER_NOT_APPROVED);
     }
     if (row.developerStatus === 'pending') {
-      throw new ForbiddenException('开发者资格正在审核中，审核通过后才能创建应用');
+      throw new BizException(ERROR_CODE.DEVELOPER_UNDER_REVIEW);
     }
     if (row.developerStatus === 'rejected') {
-      throw new ForbiddenException(
+      throw new BizException(
+        ERROR_CODE.DEVELOPER_REJECTED,
         `开发者资格申请未通过${row.developerRejectReason ? `：${row.developerRejectReason}` : ''}，请补齐资料后重新提交`,
       );
     }
@@ -266,10 +268,10 @@ export class DeveloperAuthService {
   ): { org: string; phone: string; devType: 'personal' | 'enterprise' } {
     const org = (company || '').trim();
     const phone = (contact || '').trim();
-    if (org.length < 2) throw new BadRequestException('请填写公司 / 团队名称（至少 2 个字符）');
-    if (phone.length < 2) throw new BadRequestException('请填写联系方式');
+    if (org.length < 2) throw new BizException(ERROR_CODE.DEVELOPER_PROFILE_INVALID, '请填写公司 / 团队名称（至少 2 个字符）');
+    if (phone.length < 2) throw new BizException(ERROR_CODE.DEVELOPER_PROFILE_INVALID, '请填写联系方式');
     if (org.length > 128 || phone.length > 64) {
-      throw new BadRequestException('资料长度超出限制');
+      throw new BizException(ERROR_CODE.DEVELOPER_PROFILE_INVALID, '资料长度超出限制');
     }
     return { org, phone, devType: developerType === 'enterprise' ? 'enterprise' : 'personal' };
   }
@@ -318,10 +320,10 @@ export class DeveloperAuthService {
 
   private assertPassword(password: string): void {
     const pwd = password || '';
-    if (pwd.length < 10) throw new BadRequestException('密码至少 10 位');
-    if (pwd.length > 128) throw new BadRequestException('密码不能超过 128 位');
+    if (pwd.length < 10) throw new BizException(ERROR_CODE.AUTH_WEAK_PASSWORD, '密码至少 10 位');
+    if (pwd.length > 128) throw new BizException(ERROR_CODE.AUTH_WEAK_PASSWORD, '密码不能超过 128 位');
     if (!/[a-zA-Z]/.test(pwd) || !/\d/.test(pwd)) {
-      throw new BadRequestException('密码需同时包含字母和数字');
+      throw new BizException(ERROR_CODE.AUTH_WEAK_PASSWORD, '密码需同时包含字母和数字');
     }
   }
 }

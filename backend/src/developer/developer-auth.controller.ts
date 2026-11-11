@@ -3,11 +3,9 @@ import {
   Controller,
   Get,
   HttpCode,
-  HttpException,
   Post,
   Req,
   Res,
-  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
@@ -17,6 +15,8 @@ import { clearRateLimit, hitRateLimit } from '../common/rate-limiter';
 import { DeveloperAuthService } from './developer-auth.service';
 import { DeveloperGuard, currentDeveloper } from './developer.guard';
 import { DevLoginBody, DevLoginRes, DevMeRes, DevRegisterBody } from './developer.dto';
+import { BizException } from '../common/biz.exception';
+import { ERROR_CODE } from '../common/error-code';
 import { OkRes } from '../common/api.dto';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -45,7 +45,7 @@ export class DeveloperAuthController {
     // 注册限流：同 IP 30 分钟最多 5 次，防批量注册
     const regKey = `devreg:${req.ip}`;
     if (!hitRateLimit(regKey, 5, 30 * 60_000)) {
-      throw new HttpException('注册过于频繁，请 30 分钟后再试', 429);
+      throw new BizException(ERROR_CODE.TOO_MANY_REQUESTS, '注册过于频繁，请 30 分钟后再试');
     }
     await this.auth.register(
       String(body?.email || ''),
@@ -72,7 +72,7 @@ export class DeveloperAuthController {
     const rl = loadConfig().rateLimit;
     const loginKey = `devlogin:${String(body?.email || '').trim().toLowerCase()}:${req.ip}`;
     if (!hitRateLimit(loginKey, rl.loginMax, rl.loginWindowMs)) {
-      throw new HttpException('登录尝试过于频繁，请稍后再试', 429);
+      throw new BizException(ERROR_CODE.TOO_MANY_REQUESTS, '登录尝试过于频繁，请稍后再试');
     }
     const result = await this.auth.login(
       String(body?.email || ''),
@@ -150,6 +150,6 @@ export class DeveloperAuthController {
       const [k, ...rest] = part.trim().split('=');
       if (k === name) return decodeURIComponent(rest.join('='));
     }
-    throw new UnauthorizedException('缺少刷新令牌');
+    throw new BizException(ERROR_CODE.AUTH_REFRESH_TOKEN_MISSING);
   }
 }
