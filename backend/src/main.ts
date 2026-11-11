@@ -65,11 +65,15 @@ async function bootstrap(): Promise<void> {
   if (process.env.NODE_ENV !== 'production') {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('wb-oidc API')
-      .setDescription('OIDC Provider 管理端 / 开发者端 API')
+      .setDescription('OIDC Provider 对外接口文档（开发者端 / 健康检查）')
       .setVersion('0.1')
       .addBearerAuth()
       .build();
     const document = SwaggerModule.createDocument(app, swaggerConfig);
+    // 仅暴露对外接口，过滤管理端（admin/*）路径
+    for (const path of Object.keys(document.paths)) {
+      if (/(^|\/)admin(\/|$)/.test(path)) delete document.paths[path];
+    }
     SwaggerModule.setup('api/docs', app, document, {
       customSiteTitle: 'MOONDROP-OIDC API',
     });
