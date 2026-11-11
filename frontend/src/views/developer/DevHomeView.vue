@@ -145,9 +145,9 @@ const steps = computed(() => [
 .hero-inner {
   position: relative;
   z-index: 1;
-  max-width: 1120px;
+  max-width: 1440px;
   margin: 0 auto;
-  padding: 0 24px;
+  padding: 0 40px;
   text-align: center;
 }
 .hero-badge {
@@ -244,9 +244,9 @@ const steps = computed(() => [
 
 /* ---------- 通用区块 ---------- */
 .section-inner {
-  max-width: 1200px;
+  max-width: 1440px;
   margin: 0 auto;
-  padding: 104px 28px;
+  padding: 104px 40px;
 }
 .section-eyebrow {
   text-align: center;
@@ -365,14 +365,15 @@ const steps = computed(() => [
   position: relative;
   z-index: 1;
   width: 100%;
-  max-width: 1200px;
+  max-width: 1440px;
   margin: 0 auto;
-  padding: 64px 28px;
+  padding: 64px 40px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 28px;
   flex-wrap: wrap;
+  box-sizing: border-box;
 }
 .cta-copy h3 {
   margin: 0 0 10px;

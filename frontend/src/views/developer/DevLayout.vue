@@ -91,10 +91,7 @@
           <img class="footer-logo" src="/moondrop.ico" alt="Moondrop" />
           <span>{{ t('developer.nav.copyright') }}</span>
         </div>
-        <el-space :size="16">
-          <RouterLink to="/docs" class="footer-link">{{ t('developer.nav.docs') }}</RouterLink>
-          <RouterLink to="/" class="footer-link">{{ t('developer.nav.home') }}</RouterLink>
-        </el-space>
+        
       </div>
     </footer>
   </div>
@@ -180,13 +177,14 @@ async function onCommand(cmd: string) {
   border-bottom: 1px solid var(--line);
 }
 .nav-inner {
-  max-width: 1120px;
-  margin: 0 auto;
+  /* 铺满视口：导航品牌贴最左，工具区贴最右 */
+  width: 100%;
   height: 66px;
-  padding: 0 24px;
+  padding: 0 32px;
   display: flex;
   align-items: center;
   gap: 40px;
+  box-sizing: border-box;
 }
 .brand {
   display: flex;
@@ -313,16 +311,18 @@ async function onCommand(cmd: string) {
   border-top: 1px solid #0a3d91;
 }
 .footer-inner {
-  max-width: 1120px;
+  /* 铺满视口，与导航同宽 */
+  width: 100%;
   margin: 0 auto;
   padding: 24px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   font-size: 12px;
   color: #9db4d8;
   gap: 16px;
   flex-wrap: wrap;
+  box-sizing: border-box;
 }
 .footer-brand {
   display: flex;
@@ -337,12 +337,5 @@ async function onCommand(cmd: string) {
   padding: 2px;
   box-sizing: border-box;
   object-fit: contain;
-}
-.footer-link {
-  color: #b9cceb;
-  text-decoration: none;
-}
-.footer-link:hover {
-  color: #fff;
 }
 </style>

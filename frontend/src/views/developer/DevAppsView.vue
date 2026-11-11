@@ -350,9 +350,9 @@ function statusText(status: string) {
 
 <style scoped>
 .workspace {
-  max-width: 1120px;
+  max-width: 1440px;
   margin: 0 auto;
-  padding: 40px 24px 64px;
+  padding: 40px 40px 64px;
 }
 .ws-head {
   display: flex;
