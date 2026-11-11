@@ -4,6 +4,8 @@ import { createWriteStream, existsSync, mkdirSync } from 'fs';
 import * as path from 'path';
 import * as express from 'express';
 import { NestFactory } from '@nestjs/core';
+import { BadRequestException, ValidationPipe } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { LegacyUserService } from './oidc/legacy/legacy-user.service';
 import { createProvider } from './oidc/provider.factory';
@@ -39,10 +41,39 @@ async function bootstrap(): Promise<void> {
     logger: ['error', 'warn', 'log'],
   });
   app.setGlobalPrefix('api');
+  // 全局参数校验：自动按 DTO 装饰器校验/转换（class-validator 标准做法）
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true,
+      whitelist: false, // 不剥离未声明字段（分页/审核等 DTO 依赖原样透传的冗余字段）
+      forbidNonWhitelisted: false,
+      // 校验失败统一 400 JSON，不抛 HTML 错误页
+      exceptionFactory: (errors) =>
+        new BadRequestException(
+          errors
+            .map((e) => Object.values(e.constraints || {}).map((message) => ({ field: e.property, message })))
+            .flat(),
+        ),
+    }),
+  );
   app.enableCors({
     origin: config.corsOrigins.length ? config.corsOrigins : false,
     credentials: true,
   });
+
+  // Swagger 仅本地/非生产开启，挂在 /api/docs（不与 OIDC 协议路径冲突）
+  if (process.env.NODE_ENV !== 'production') {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('wb-oidc API')
+      .setDescription('OIDC Provider 管理端 / 开发者端 API')
+      .setVersion('0.1')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('api/docs', app, document, {
+      customSiteTitle: 'MOONDROP-OIDC API',
+    });
+  }
 
   const legacyUserService = app.get(LegacyUserService);
   const provider = createProvider(config, legacyUserService);

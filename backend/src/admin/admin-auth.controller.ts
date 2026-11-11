@@ -10,6 +10,7 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { loadConfig } from '../config/env';
 import { clearRateLimit, hitRateLimit } from '../common/rate-limiter';
@@ -17,21 +18,19 @@ import { AdminAuthService } from './admin-auth.service';
 import { AdminAuthGuard } from './admin-auth.guard';
 import { CurrentAdmin } from './current-admin.decorator';
 import { AdminPrincipal } from './admin.types';
-
-interface LoginDto {
-  username?: string;
-  password?: string;
-}
-
-interface ChangePasswordDto {
-  old_password?: string;
-  new_password?: string;
-}
+import {
+  AdminChangePasswordBody,
+  AdminLoginBody,
+  AdminLoginRes,
+  AdminUserItemRes,
+} from './admin.dto';
+import { MessageRes, OkRes } from '../common/api.dto';
 
 /**
  * 管理端登录：账号密码 → 短时效 access token（body 返回，前端内存持有）
  * + refresh token（httpOnly cookie，路径限定在 /api/admin/auth，服务端可吊销）。
  */
+@ApiTags('管理端-认证')
 @Controller('admin/auth')
 export class AdminAuthController {
   constructor(private readonly auth: AdminAuthService) {}
@@ -42,8 +41,10 @@ export class AdminAuthController {
 
   @Post('login')
   @HttpCode(200)
+  @ApiOperation({ summary: '管理员登录', description: '同用户名+IP 限流防撞库；成功后 set httpOnly refresh cookie' })
+  @ApiOkResponse({ type: AdminLoginRes })
   async login(
-    @Body() body: LoginDto,
+    @Body() body: AdminLoginBody,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
@@ -70,6 +71,8 @@ export class AdminAuthController {
 
   @Post('refresh')
   @HttpCode(200)
+  @ApiOperation({ summary: '刷新 access token', description: '凭 httpOnly cookie 中的 refresh token 换新，刷新即轮换' })
+  @ApiOkResponse({ type: AdminLoginRes })
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const raw = this.readRefreshCookie(req);
     const result = await this.auth.refresh(raw, req.ip, req.headers['user-agent']);
@@ -83,6 +86,8 @@ export class AdminAuthController {
 
   @Post('logout')
   @HttpCode(200)
+  @ApiOperation({ summary: '管理员登出', description: '吊销 refresh token 并清 cookie；access token 过期也允许登出' })
+  @ApiOkResponse({ type: OkRes })
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const raw = this.readRefreshCookie(req);
     let admin: AdminPrincipal | undefined;
@@ -101,6 +106,9 @@ export class AdminAuthController {
 
   @Get('me')
   @UseGuards(AdminAuthGuard)
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: '获取当前管理员信息' })
+  @ApiOkResponse({ type: AdminUserItemRes })
   async me(@CurrentAdmin() admin: AdminPrincipal) {
     return { data: await this.auth.me(admin.id) };
   }
@@ -109,9 +117,12 @@ export class AdminAuthController {
   @Post('change-password')
   @HttpCode(200)
   @UseGuards(AdminAuthGuard)
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: '管理员自助修改密码', description: '校验原密码后更新，并吊销全部会话、清 refresh cookie，强制重新登录' })
+  @ApiOkResponse({ type: MessageRes })
   async changePassword(
     @CurrentAdmin() admin: AdminPrincipal,
-    @Body() body: ChangePasswordDto,
+    @Body() body: AdminChangePasswordBody,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {

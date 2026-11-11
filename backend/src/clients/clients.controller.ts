@@ -12,18 +12,35 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Request } from 'express';
+import {
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { ClientsService, CreateClientDto, ClientRow } from './clients.service';
 import { AdminAuthGuard } from '../admin/admin-auth.guard';
 import { CurrentAdmin } from '../admin/current-admin.decorator';
 import { AdminAuditService } from '../admin/admin-audit.service';
 import { AdminPrincipal } from '../admin/admin.types';
+import {
+  ClientCreateRes,
+  ClientItemRes,
+  ClientListRes,
+  ClientReviewBody,
+  CreateClientBody,
+  UpdateClientBody,
+} from './clients.dto';
+import { OkRes } from '../common/api.dto';
 
 /**
  * 管理端 API：注册/管理第三方应用。
  * 鉴权：AdminAuthGuard（Bearer access token），操作写审计日志。
  */
-@Controller('admin/clients')
+@ApiTags('管理端-第三方应用')
+@ApiBearerAuth('bearer')
 @UseGuards(AdminAuthGuard)
+@Controller('admin/clients')
 export class ClientsController {
   constructor(
     private readonly clientsService: ClientsService,
@@ -31,6 +48,8 @@ export class ClientsController {
   ) {}
 
   @Get()
+  @ApiOperation({ summary: '应用列表', description: '返回全部应用（含 client_secret 密文与归属开发者邮箱）' })
+  @ApiOkResponse({ type: ClientListRes })
   async list(@CurrentAdmin() admin: AdminPrincipal): Promise<{ data: ClientRow[] }> {
     void admin;
     const rows = await this.clientsService.list();
@@ -38,17 +57,21 @@ export class ClientsController {
   }
 
   @Post()
+  @ApiOperation({ summary: '直接创建应用', description: '管理端创建默认即 approved；返回的 client_secret 明文仅此一次' })
+  @ApiOkResponse({ type: ClientCreateRes })
   async create(
     @CurrentAdmin() admin: AdminPrincipal,
-    @Body() dto: CreateClientDto,
+    @Body() dto: CreateClientBody,
     @Req() req: Request,
   ): Promise<{ data: ClientRow; client_secret: string }> {
-    const { client, secret } = await this.clientsService.create(dto);
+    const { client, secret } = await this.clientsService.create(dto as CreateClientDto);
     await this.audit.log(admin, 'client.create', client.client_id, { name: client.client_name }, req.ip);
     return { data: client, client_secret: secret };
   }
 
   @Get(':clientId')
+  @ApiOperation({ summary: '应用详情' })
+  @ApiOkResponse({ type: ClientItemRes })
   async detail(
     @CurrentAdmin() admin: AdminPrincipal,
     @Param('clientId') clientId: string,
@@ -60,6 +83,8 @@ export class ClientsController {
   }
 
   @Patch(':clientId/enabled/:enabled')
+  @ApiOperation({ summary: '启停应用', description: 'enabled 取 true/1 即启用，其余为停用；与审核状态独立' })
+  @ApiOkResponse({ type: ClientItemRes })
   async toggle(
     @CurrentAdmin() admin: AdminPrincipal,
     @Param('clientId') clientId: string,
@@ -74,21 +99,13 @@ export class ClientsController {
 
   /** 通用编辑：应用名称 / 回调地址 / scope */
   @Patch(':clientId')
+  @ApiOperation({ summary: '编辑应用', description: '可改名称/回调/scope/类目/展示信息；类目变更会同步调整安全形态（secret 补发或清空）' })
+  @ApiOkResponse({ type: ClientItemRes })
   async update(
     @CurrentAdmin() admin: AdminPrincipal,
     @Param('clientId') clientId: string,
     @Body()
-    dto: {
-      client_name?: string;
-      redirect_uris?: string[];
-      scope?: string;
-      category?: 'web_app' | 'mobile_app' | 'mini_program';
-      logo?: string;
-      description?: string;
-      website?: string;
-      icp_number?: string;
-      tags?: string[];
-    },
+    dto: UpdateClientBody,
     @Req() req: Request,
   ): Promise<{ data: ClientRow }> {
     const row = await this.clientsService.update(clientId, dto);
@@ -103,6 +120,8 @@ export class ClientsController {
   }
 
   @Post(':clientId/rotate-secret')
+  @ApiOperation({ summary: '轮换 client_secret', description: '生成新 secret 并覆盖旧值，新明文仅此次返回' })
+  @ApiOkResponse({ type: ClientCreateRes })
   async rotateSecret(
     @CurrentAdmin() admin: AdminPrincipal,
     @Param('clientId') clientId: string,
@@ -115,10 +134,12 @@ export class ClientsController {
 
   /** 应用审核：approve / reject / suspend（reject、suspend 必须带理由） */
   @Post(':clientId/review')
+  @ApiOperation({ summary: '应用审核', description: 'approve 通过 / reject 驳回 / suspend 停用；reject、suspend 必须带理由' })
+  @ApiOkResponse({ type: ClientItemRes })
   async review(
     @CurrentAdmin() admin: AdminPrincipal,
     @Param('clientId') clientId: string,
-    @Body() body: { action?: 'approve' | 'reject' | 'suspend'; reason?: string },
+    @Body() body: ClientReviewBody,
     @Req() req: Request,
   ): Promise<{ data: ClientRow }> {
     const action = body?.action;
@@ -137,6 +158,8 @@ export class ClientsController {
   }
 
   @Delete(':clientId')
+  @ApiOperation({ summary: '删除应用', description: '物理删除，不可恢复' })
+  @ApiOkResponse({ type: OkRes })
   async remove(
     @CurrentAdmin() admin: AdminPrincipal,
     @Param('clientId') clientId: string,

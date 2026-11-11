@@ -11,10 +11,25 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Request } from 'express';
+import {
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { ClientsService, CreateClientDto, ClientRow } from '../clients/clients.service';
 import { DeveloperGuard, currentDeveloper } from './developer.guard';
 import { DeveloperAuthService } from './developer-auth.service';
 import { AdminAuditService } from '../admin/admin-audit.service';
+import {
+  ClientCreateRes,
+  ClientItemRes,
+  ClientListRes,
+  ClientSecretRes,
+  CreateClientBody,
+  UpdateClientBody,
+} from '../clients/clients.dto';
+import { DevRevealSecretBody } from './developer.dto';
 
 /** 开发者自己的应用（返回前剥离 secret 与内部字段） */
 function safeClient(row: ClientRow) {
@@ -28,8 +43,10 @@ function safeClient(row: ClientRow) {
  * 流程：创建 → pending → 管理员 approve 后才能发起 OIDC 授权；
  * 审核通过后改动回调/scope 会回到 pending 重新审核。
  */
-@Controller('developer/apps')
+@ApiTags('开发者-应用')
+@ApiBearerAuth('bearer')
 @UseGuards(DeveloperGuard)
+@Controller('developer/apps')
 export class DeveloperAppsController {
   constructor(
     private readonly clients: ClientsService,
@@ -38,6 +55,8 @@ export class DeveloperAppsController {
   ) {}
 
   @Get()
+  @ApiOperation({ summary: '我的应用列表', description: '返回当前开发者的全部应用，不含 client_secret' })
+  @ApiOkResponse({ type: ClientListRes })
   async listMine(@Req() req: Request) {
     const dev = currentDeveloper(req);
     const rows = await this.clients.listByDeveloper(dev.id);
@@ -45,6 +64,8 @@ export class DeveloperAppsController {
   }
 
   @Get(':clientId')
+  @ApiOperation({ summary: '应用详情', description: '仅限本人的应用；不含 client_secret' })
+  @ApiOkResponse({ type: ClientItemRes })
   async getOne(@Req() req: Request, @Param('clientId') clientId: string) {
     const dev = currentDeveloper(req);
     const row = await this.clients.get(clientId);
@@ -59,10 +80,15 @@ export class DeveloperAppsController {
    * 移动应用 / 小程序走 PKCE 没有 secret，返回 client_secret: null。
    */
   @Post(':clientId/reveal-secret')
+  @ApiOperation({
+    summary: '查看 client_secret 明文',
+    description: '需输入登录密码二次验证；PKCE 类目（移动/小程序）没有 secret，返回 null；每次查看均写审计日志',
+  })
+  @ApiOkResponse({ type: ClientSecretRes })
   async revealSecret(
     @Req() req: Request,
     @Param('clientId') clientId: string,
-    @Body() body: { password?: string },
+    @Body() body: DevRevealSecretBody,
   ) {
     const dev = currentDeveloper(req);
     const row = await this.clients.get(clientId);
@@ -82,10 +108,15 @@ export class DeveloperAppsController {
   }
 
   @Post()
-  async create(@Req() req: Request, @Body() dto: CreateClientDto) {    const dev = currentDeveloper(req);
+  @ApiOperation({
+    summary: '创建应用',
+    description: '需开发者资格已通过；创建后为 pending 待审核；企业开发者必填 icp_number；client_secret 明文仅此次返回（PKCE 类目为空）',
+  })
+  @ApiOkResponse({ type: ClientCreateRes })
+  async create(@Req() req: Request, @Body() dto: CreateClientBody) {    const dev = currentDeveloper(req);
     // 实时查库校验开发者资格，不信任 JWT 里签发的旧状态
     await this.devAuth.assertDeveloperApproved(dev.id);
-    const { client, secret } = await this.clients.create(dto, {
+    const { client, secret } = await this.clients.create(dto as CreateClientDto, {
       developerId: dev.id,
       status: 'pending',
     });
@@ -93,21 +124,16 @@ export class DeveloperAppsController {
   }
 
   @Patch(':clientId')
+  @ApiOperation({
+    summary: '编辑应用',
+    description: '审核中（pending）不可修改；改动回调地址或 scope 会回到 pending 重新审核；需开发者资格已通过',
+  })
+  @ApiOkResponse({ type: ClientItemRes })
   async update(
     @Req() req: Request,
     @Param('clientId') clientId: string,
     @Body()
-    dto: {
-      client_name?: string;
-      redirect_uris?: string[];
-      scope?: string;
-      category?: 'web_app' | 'mobile_app' | 'mini_program';
-      logo?: string;
-      description?: string;
-      website?: string;
-      icp_number?: string;
-      tags?: string[];
-    },
+    dto: UpdateClientBody,
   ) {
     const dev = currentDeveloper(req);
     await this.devAuth.assertDeveloperApproved(dev.id);

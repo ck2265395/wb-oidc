@@ -11,10 +11,13 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { loadConfig } from '../config/env';
 import { clearRateLimit, hitRateLimit } from '../common/rate-limiter';
 import { DeveloperAuthService } from './developer-auth.service';
 import { DeveloperGuard, currentDeveloper } from './developer.guard';
+import { DevLoginBody, DevLoginRes, DevMeRes, DevRegisterBody } from './developer.dto';
+import { OkRes } from '../common/api.dto';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -22,6 +25,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * 开发者门户认证接口（/api/developer/auth/*）。
  * 与管理员会话完全独立：独立 cookie 名、独立 session 表、typ=developer_access。
  */
+@ApiTags('开发者-认证')
 @Controller('developer/auth')
 export class DeveloperAuthController {
   constructor(private readonly auth: DeveloperAuthService) {}
@@ -32,8 +36,10 @@ export class DeveloperAuthController {
 
   @Post('register')
   @HttpCode(200)
+  @ApiOperation({ summary: '开发者注册', description: '同 IP 30 分钟限 5 次；注册后即可登录，创建应用需另行申请开发者资格' })
+  @ApiOkResponse({ type: OkRes })
   async register(
-    @Body() body: { email?: string; password?: string },
+    @Body() body: DevRegisterBody,
     @Req() req: Request,
   ) {
     // 注册限流：同 IP 30 分钟最多 5 次，防批量注册
@@ -55,8 +61,10 @@ export class DeveloperAuthController {
 
   @Post('login')
   @HttpCode(200)
+  @ApiOperation({ summary: '开发者登录', description: '同邮箱+IP 限流防撞库；成功后 set httpOnly refresh cookie' })
+  @ApiOkResponse({ type: DevLoginRes })
   async login(
-    @Body() body: { email?: string; password?: string },
+    @Body() body: DevLoginBody,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
@@ -83,6 +91,8 @@ export class DeveloperAuthController {
 
   @Post('refresh')
   @HttpCode(200)
+  @ApiOperation({ summary: '刷新 access token', description: '凭 httpOnly cookie 中的 refresh token 换新，刷新即轮换' })
+  @ApiOkResponse({ type: DevLoginRes })
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const result = await this.auth.refresh(this.readRefreshCookie(req), req.ip, req.headers['user-agent']);
     this.setRefreshCookie(res, result.refreshToken, result.refreshTtlSeconds);
@@ -95,6 +105,8 @@ export class DeveloperAuthController {
 
   @Post('logout')
   @HttpCode(200)
+  @ApiOperation({ summary: '开发者登出', description: '吊销 refresh token 并清 cookie；未登录时静默成功' })
+  @ApiOkResponse({ type: OkRes })
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     try {
       await this.auth.logout(this.readRefreshCookie(req));
@@ -107,6 +119,9 @@ export class DeveloperAuthController {
 
   @Get('me')
   @UseGuards(DeveloperGuard)
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: '获取当前开发者信息' })
+  @ApiOkResponse({ type: DevMeRes })
   async me(@Req() req: Request) {
     const dev = currentDeveloper(req);
     return { data: await this.auth.me(dev.id) };
