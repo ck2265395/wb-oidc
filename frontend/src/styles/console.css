@@ -68,10 +68,10 @@
   gap: 8px;
 }
 
-/* 表格：更清晰的表头、行高与状态标签 */
+/* 表格：更清晰的表头、行高与状态标签（表头浅色 token，暗色自动跟随） */
 .console-shell .el-table th.el-table__cell {
-  background: #f7faff !important;
-  color: #475569;
+  background: var(--brand-50) !important;
+  color: var(--ink-700);
   font-weight: 600;
   border-bottom: 1px solid var(--line) !important;
 }
@@ -147,9 +147,15 @@
   background: #fff7e6;
   color: #b7791f;
 }
+html.dark .console-shell .stat-icon.warn {
+  background: rgba(183, 121, 31, 0.18);
+}
 .console-shell .stat-icon.success {
   background: #ecfdf3;
   color: #17845a;
+}
+html.dark .console-shell .stat-icon.success {
+  background: rgba(23, 132, 90, 0.2);
 }
 .console-shell .stat-icon.danger {
   background: #fef2f2;

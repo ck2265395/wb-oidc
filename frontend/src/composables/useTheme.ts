@@ -102,10 +102,10 @@ function applyTheme(): void {
   root.style.setProperty('--brand-700', mix(primaryColor.value, BLACK, 0.12));
   root.style.setProperty('--brand-800', mix(primaryColor.value, BLACK, 0.24));
   root.style.setProperty('--brand-500', mix(primaryColor.value, WHITE, 0.08));
-  // 侧边栏深色底：从主色派生（深色调和主题色一致），激活态用主色半透明
-  const [r, g, b] = hexToRgb(primaryColor.value);
-  root.style.setProperty('--aside-bg', mix(primaryColor.value, BLACK, 0.8));
-  root.style.setProperty('--aside-active', `rgba(${r}, ${g}, ${b}, 0.45)`);
+  // 侧边栏整体深底：主色沉入深底（类似 antd #001529 的深藏青观感，跟随皮肤）
+  root.style.setProperty('--aside-bg', mix(primaryColor.value, BLACK, 0.85));
+  const [ar, ag, ab] = hexToRgb(primaryColor.value);
+  root.style.setProperty('--aside-active', `rgba(${ar}, ${ag}, ${ab}, 0.55)`);
 }
 
 function setDarkMode(mode: DarkMode): void {

@@ -11,13 +11,7 @@
         </div>
 
         <div class="menu-scroll">
-          <el-menu
-            :default-active="route.path"
-            router
-            class="menu"
-            text-color="#9fb0c9"
-            active-text-color="#ffffff"
-          >
+          <el-menu :default-active="route.path" router class="menu">
             <el-menu-item-group :title="t('console.nav.groupWorkspace')">
               <el-menu-item index="/console/overview">
                 <el-icon><Odometer /></el-icon><span>{{ t('console.nav.overview') }}</span>
@@ -351,7 +345,7 @@ async function submitPassword() {
   align-items: center;
   gap: 11px;
   padding: 0 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 .brand-logo {
   width: 34px;
@@ -371,7 +365,7 @@ async function submitPassword() {
 .brand-sub {
   margin-top: 2px;
   font-size: 11px;
-  color: #7c8db0;
+  color: rgba(255, 255, 255, 0.55);
 }
 .menu-scroll {
   flex: 1;
@@ -386,7 +380,7 @@ async function submitPassword() {
   padding: 18px 14px 8px;
   font-size: 11px;
   letter-spacing: 1.4px;
-  color: #5f7295;
+  color: #8494ad;
 }
 .console-shell :deep(.menu .el-menu-item) {
   height: 42px;
@@ -394,6 +388,7 @@ async function submitPassword() {
   border-radius: 7px;
   margin-bottom: 3px;
   font-size: 13px;
+  color: #c7d2e3;
 }
 .console-shell :deep(.menu .el-menu-item .el-icon) {
   font-size: 16px;
@@ -402,7 +397,11 @@ async function submitPassword() {
 .console-shell :deep(.menu .el-menu-item.is-active) {
   color: #fff !important;
   background: linear-gradient(90deg, var(--aside-active), transparent) !important;
+  font-weight: 600;
   box-shadow: inset 3px 0 0 var(--el-color-primary-light-3);
+}
+.console-shell :deep(.menu .el-menu-item:hover) {
+  background: rgba(255, 255, 255, 0.06);
 }
 .menu-count {
   margin-left: auto;
@@ -413,11 +412,11 @@ async function submitPassword() {
 .aside-foot {
   flex-shrink: 0;
   padding: 16px 20px 18px;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 .back-portal {
   font-size: 12px;
-  color: #93a7c9;
+  color: #b3c1da;
   text-decoration: none;
 }
 .back-portal:hover {
@@ -426,7 +425,7 @@ async function submitPassword() {
 .version {
   margin-top: 8px;
   font-size: 11px;
-  color: #526381;
+  color: #7d8cab;
 }
 .header {
   display: flex;
