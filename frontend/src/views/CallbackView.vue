@@ -1,42 +1,42 @@
 <template>
   <div class="callback-page">
     <el-card class="box-card">
-      <template #header><span>🎉 OIDC 授权码流程结果</span></template>
+      <template #header><span>🎉 {{ t('common.callback.title') }}</span></template>
 
       <div v-if="error">
-        <el-result icon="error" title="授权失败" :sub-title="error" />
+        <el-result icon="error" :title="t('common.callback.errorTitle')" :sub-title="error" />
       </div>
 
       <div v-else-if="tokens">
         <el-descriptions :column="1" border class="mb16">
-          <el-descriptions-item label="当前用户（id_token sub）">
+          <el-descriptions-item :label="t('common.callback.currentUser')">
             {{ idToken?.sub }}
           </el-descriptions-item>
-          <el-descriptions-item v-if="idToken?.nickname || idToken?.name" label="昵称">
+          <el-descriptions-item v-if="idToken?.nickname || idToken?.name" :label="t('common.callback.nickname')">
             {{ idToken?.nickname || idToken?.name }}
           </el-descriptions-item>
-          <el-descriptions-item v-if="idToken?.email" label="邮箱">
+          <el-descriptions-item v-if="idToken?.email" :label="t('common.callback.email')">
             {{ idToken?.email }}
           </el-descriptions-item>
         </el-descriptions>
 
         <el-collapse>
-          <el-collapse-item title="Token 响应（原始 JSON）">
+          <el-collapse-item :title="t('common.callback.tokenResponse')">
             <pre class="json">{{ JSON.stringify(tokens, null, 2) }}</pre>
           </el-collapse-item>
-          <el-collapse-item title="id_token 解码">
+          <el-collapse-item :title="t('common.callback.idTokenDecoded')">
             <pre class="json">{{ JSON.stringify(idToken, null, 2) }}</pre>
           </el-collapse-item>
-          <el-collapse-item v-if="userinfo" title="userinfo 响应">
+          <el-collapse-item v-if="userinfo" :title="t('common.callback.userinfoResp')">
             <pre class="json">{{ JSON.stringify(userinfo, null, 2) }}</pre>
           </el-collapse-item>
         </el-collapse>
 
         <div class="mt16">
           <el-button type="primary" :loading="loadingUserinfo" @click="fetchUserinfo">
-            调用 /userinfo 获取用户信息
+            {{ t('common.callback.fetchUserinfo') }}
           </el-button>
-          <el-button @click="back">返回控制台</el-button>
+          <el-button @click="back">{{ t('common.callback.back') }}</el-button>
         </div>
       </div>
 
@@ -51,10 +51,12 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
+import { useI18n } from 'vue-i18n';
 import { ISSUER, decodeJwtPayload } from '../api';
 
 const route = useRoute();
 const router = useRouter();
+const { t } = useI18n();
 
 const error = ref('');
 const tokens = ref<Record<string, unknown> | null>(null);
@@ -62,14 +64,14 @@ const userinfo = ref<Record<string, unknown> | null>(null);
 const loadingUserinfo = ref(false);
 
 const idToken = computed(() => {
-  const t = tokens.value?.id_token;
-  return typeof t === 'string' ? decodeJwtPayload(t) : null;
+  const tk = tokens.value?.id_token;
+  return typeof tk === 'string' ? decodeJwtPayload(tk) : null;
 });
 
 async function exchange() {
   const stored = sessionStorage.getItem('wb_oidc_pkce');
   if (!stored) {
-    error.value = '本地没有找到 PKCE 上下文（请从控制台「测试登录」发起）';
+    error.value = t('common.callback.noContext');
     return;
   }
   const { verifier, state, clientId, redirectUri } = JSON.parse(stored);
@@ -82,11 +84,11 @@ async function exchange() {
     return;
   }
   if (!code) {
-    error.value = '回调缺少 code 参数';
+    error.value = t('common.callback.noCode');
     return;
   }
   if (returnedState !== state) {
-    error.value = 'state 校验失败，可能存在 CSRF 风险，已中止';
+    error.value = t('common.callback.stateMismatch');
     return;
   }
 
@@ -105,20 +107,22 @@ async function exchange() {
     });
     const json = await res.json();
     if (!res.ok) {
-      error.value = `token 端点返回错误: ${json.error} - ${json.error_description || ''}`;
+      error.value = t('common.callback.tokenEndpointError', {
+        err: `${json.error} - ${json.error_description || ''}`,
+      });
       return;
     }
     tokens.value = json;
     sessionStorage.removeItem('wb_oidc_pkce');
   } catch (e: any) {
-    error.value = e?.message || '换取 token 失败';
+    error.value = e?.message || t('common.callback.exchangeFailed');
   }
 }
 
 async function fetchUserinfo() {
   const accessToken = tokens.value?.access_token as string | undefined;
   if (!accessToken) {
-    ElMessage.warning('没有 access_token');
+    ElMessage.warning(t('common.callback.noAccessToken'));
     return;
   }
   loadingUserinfo.value = true;
@@ -128,7 +132,7 @@ async function fetchUserinfo() {
     });
     userinfo.value = await res.json();
   } catch (e: any) {
-    ElMessage.error(e?.message || 'userinfo 调用失败');
+    ElMessage.error(e?.message || t('common.callback.userinfoFailed'));
   } finally {
     loadingUserinfo.value = false;
   }
@@ -147,7 +151,7 @@ onMounted(exchange);
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  background: #f5f7fa;
+  background: var(--canvas);
   padding: 40px 16px;
 }
 .box-card {
@@ -155,7 +159,7 @@ onMounted(exchange);
   max-width: 100%;
 }
 .json {
-  background: #f6f8fa;
+  background: var(--canvas);
   padding: 12px;
   border-radius: 6px;
   font-size: 12px;

@@ -2,11 +2,11 @@
   <div class="profile-wrap">
     <div class="profile-head">
       <div>
-        <h2 class="page-title">账号资料</h2>
-        <p class="page-desc">账号信息、开发者资格与审核状态。</p>
+        <h2 class="page-title">{{ t('developer.profile.title') }}</h2>
+        <p class="page-desc">{{ t('developer.profile.desc') }}</p>
       </div>
       <el-button type="primary" :icon="EditPen" @click="$router.push('/profile/edit')">
-        编辑开发者资料
+        {{ t('developer.common.editProfile') }}
       </el-button>
     </div>
 
@@ -17,7 +17,7 @@
           <div class="profile-email">{{ info?.email }}</div>
           <div class="tag-row">
             <el-tag :type="info?.status === 'active' ? 'success' : 'danger'" size="small" round effect="light">
-              账号{{ accountText }}
+              {{ t('developer.common.accountTag', { status: accountText }) }}
             </el-tag>
             <el-tag :type="qualificationTag" size="small" round effect="light">
               {{ qualificationText }}
@@ -32,7 +32,7 @@
         type="error"
         :closable="false"
         show-icon
-        :title="`开发者资格申请未通过：${info?.developer_reject_reason || '请补齐资料后重新提交'}`"
+        :title="t('developer.profile.rejectedAlert', { reason: info?.developer_reject_reason || t('developer.profile.fixAndResubmit') })"
       />
       <el-alert
         v-if="info?.status === 'suspended'"
@@ -40,28 +40,28 @@
         type="error"
         :closable="false"
         show-icon
-        :title="`账号已停用：${info?.reject_reason || '请联系平台管理员'}`"
+        :title="t('developer.profile.suspendedAlert', { reason: info?.reject_reason || t('developer.profile.contactAdmin') })"
       />
 
       <el-descriptions :column="2" border class="mt24">
-        <el-descriptions-item label="邮箱">{{ info?.email || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="账号状态">{{ accountText }}</el-descriptions-item>
-        <el-descriptions-item label="开发者资格">{{ qualificationText }}</el-descriptions-item>
-        <el-descriptions-item label="申请时间">
+        <el-descriptions-item :label="t('developer.common.email')">{{ info?.email || '—' }}</el-descriptions-item>
+        <el-descriptions-item :label="t('developer.common.accountStatus')">{{ accountText }}</el-descriptions-item>
+        <el-descriptions-item :label="t('developer.common.qualification')">{{ qualificationText }}</el-descriptions-item>
+        <el-descriptions-item :label="t('developer.profile.appliedAt')">
           {{ info?.developer_applied_at ? fmtTime(info.developer_applied_at) : '—' }}
         </el-descriptions-item>
-        <el-descriptions-item label="公司 / 团队">{{ info?.company || '未填写' }}</el-descriptions-item>
-        <el-descriptions-item label="联系方式">{{ info?.contact || '未填写' }}</el-descriptions-item>
-        <el-descriptions-item label="注册时间">{{ fmtTime(info?.created_at) }}</el-descriptions-item>
-        <el-descriptions-item label="最近登录">{{ info?.last_login_at ? fmtTime(info.last_login_at) : '—' }}</el-descriptions-item>
+        <el-descriptions-item :label="t('developer.common.company')">{{ info?.company || t('developer.common.notFilled') }}</el-descriptions-item>
+        <el-descriptions-item :label="t('developer.common.contact')">{{ info?.contact || t('developer.common.notFilled') }}</el-descriptions-item>
+        <el-descriptions-item :label="t('developer.common.registeredAt')">{{ fmtTime(info?.created_at) }}</el-descriptions-item>
+        <el-descriptions-item :label="t('developer.common.lastLoginAt')">{{ info?.last_login_at ? fmtTime(info.last_login_at) : '—' }}</el-descriptions-item>
       </el-descriptions>
 
       <p v-if="info && ['none', 'rejected'].includes(info.developer_status)" class="profile-hint">
-        需要创建应用？点击右上角「编辑开发者资料」补充资料并提交审核，或回到工作台点击「新建应用」。
+        {{ t('developer.profile.createHint') }}
       </p>
       <div class="profile-actions">
         <el-button @click="$router.push('/apps')">{{ actionText }}</el-button>
-        <el-button @click="$router.push('/docs')">查看接入文档</el-button>
+        <el-button @click="$router.push('/docs')">{{ t('developer.common.viewDocs') }}</el-button>
       </div>
     </div>
   </div>
@@ -69,9 +69,11 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { EditPen } from '@element-plus/icons-vue';
 import { DeveloperInfo, devFetchMe, getCurrentDeveloper } from '../../api/dev';
 
+const { t } = useI18n();
 const info = ref<DeveloperInfo | null>(getCurrentDeveloper());
 const loading = ref(true);
 
@@ -83,16 +85,20 @@ onMounted(async () => {
 
 const avatarText = computed(() => (info.value?.email || '?').slice(0, 1).toUpperCase());
 const accountText = computed(() =>
-  info.value?.status === 'suspended' ? '已停用' : '正常',
+  info.value?.status === 'suspended'
+    ? t('developer.common.statusSuspended')
+    : t('developer.common.statusNormal'),
 );
-const qualificationMap: Record<string, string> = {
-  none: '普通用户',
-  pending: '资格审核中',
-  approved: '已认证开发者',
-  rejected: '申请未通过',
-};
+const qualificationMap = computed<Record<string, string>>(() => ({
+  none: t('developer.common.qualNone'),
+  pending: t('developer.common.qualPending'),
+  approved: t('developer.common.qualApproved'),
+  rejected: t('developer.common.qualRejected'),
+}));
 const qualificationText = computed(
-  () => qualificationMap[info.value?.developer_status || ''] || '普通用户',
+  () =>
+    qualificationMap.value[info.value?.developer_status || ''] ||
+    t('developer.common.qualNone'),
 );
 const qualificationTag = computed(
   () =>
@@ -106,13 +112,13 @@ const qualificationTag = computed(
 const actionText = computed(() => {
   switch (info.value?.developer_status) {
     case 'approved':
-      return '前往工作台创建应用';
+      return t('developer.profile.actionCreate');
     case 'pending':
-      return '返回工作台查看进度';
+      return t('developer.profile.actionCheckProgress');
     case 'rejected':
-      return '返回工作台重新申请';
+      return t('developer.profile.actionReapply');
     default:
-      return '返回工作台';
+      return t('developer.profile.actionBack');
   }
 });
 

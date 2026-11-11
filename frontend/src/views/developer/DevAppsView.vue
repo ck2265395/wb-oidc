@@ -3,11 +3,11 @@
     <!-- 页头 -->
     <div class="ws-head">
       <div>
-        <div class="ws-eyebrow">CONSOLE</div>
-        <h2 class="page-title">工作台</h2>
-        <p class="page-desc">你好，{{ dev?.email || '' }} · 查看账号状态，管理你的接入应用。</p>
+        <div class="ws-eyebrow">{{ t('developer.apps.eyebrow') }}</div>
+        <h2 class="page-title">{{ t('developer.nav.workspace') }}</h2>
+        <p class="page-desc">{{ t('developer.apps.welcome', { email: dev?.email || '' }) }}</p>
       </div>
-      <el-button text type="primary" @click="refreshAll">刷新</el-button>
+      <el-button text type="primary" @click="refreshAll">{{ t('developer.common.refresh') }}</el-button>
     </div>
 
     <!-- 模块一：用户资料与状态 -->
@@ -16,13 +16,13 @@
         <div class="panel-title">
           <span class="panel-index">01</span>
           <div>
-            <h3>用户资料与状态</h3>
-            <p>账号信息、开发者资格与审核进度</p>
+            <h3>{{ t('developer.apps.profilePanelTitle') }}</h3>
+            <p>{{ t('developer.apps.profilePanelDesc') }}</p>
           </div>
         </div>
         <div class="panel-actions">
-          <el-button :icon="EditPen" @click="$router.push('/profile/edit?redirect=/apps')">编辑开发者资料</el-button>
-          <el-button link type="primary" @click="$router.push('/profile')">查看完整资料 →</el-button>
+          <el-button :icon="EditPen" @click="$router.push('/profile/edit?redirect=/apps')">{{ t('developer.common.editProfile') }}</el-button>
+          <el-button link type="primary" @click="$router.push('/profile')">{{ t('developer.apps.viewFullProfile') }}</el-button>
         </div>
       </div>
 
@@ -38,21 +38,21 @@
                 round
                 effect="light"
               >
-                账号{{ accountText }}
+                {{ t('developer.common.accountTag', { status: accountText }) }}
               </el-tag>
               <el-tag :type="qualificationTag" size="small" round effect="light">
                 {{ qualificationText }}
               </el-tag>
             </div>
-            <div class="identity-meta">用户 ID · {{ dev?.id ?? '—' }}</div>
+            <div class="identity-meta">{{ t('developer.apps.userId', { id: dev?.id ?? '—' }) }}</div>
           </div>
         </div>
 
         <div class="profile-facts">
-          <div class="fact"><span>公司 / 团队</span><b>{{ dev?.company || '未填写' }}</b></div>
-          <div class="fact"><span>联系方式</span><b>{{ dev?.contact || '未填写' }}</b></div>
-          <div class="fact"><span>注册时间</span><b>{{ fmtTime(dev?.created_at) }}</b></div>
-          <div class="fact"><span>最近登录</span><b>{{ dev?.last_login_at ? fmtTime(dev.last_login_at) : '—' }}</b></div>
+          <div class="fact"><span>{{ t('developer.common.company') }}</span><b>{{ dev?.company || t('developer.common.notFilled') }}</b></div>
+          <div class="fact"><span>{{ t('developer.common.contact') }}</span><b>{{ dev?.contact || t('developer.common.notFilled') }}</b></div>
+          <div class="fact"><span>{{ t('developer.common.registeredAt') }}</span><b>{{ fmtTime(dev?.created_at) }}</b></div>
+          <div class="fact"><span>{{ t('developer.common.lastLoginAt') }}</span><b>{{ dev?.last_login_at ? fmtTime(dev.last_login_at) : '—' }}</b></div>
         </div>
       </div>
 
@@ -63,9 +63,9 @@
         type="error"
         :closable="false"
         show-icon
-        title="账号已停用"
+        :title="t('developer.common.suspended')"
       >
-        账号已被管理员停用，无法创建应用。{{ dev?.reject_reason || '请联系平台管理员处理。' }}
+        {{ t('developer.apps.suspendedDesc') }}{{ dev?.reject_reason || t('developer.apps.contactAdmin') }}
       </el-alert>
       <el-alert
         v-else-if="dev?.developer_status === 'pending'"
@@ -73,9 +73,9 @@
         type="warning"
         :closable="false"
         show-icon
-        title="开发者资格审核中"
+        :title="t('developer.apps.qualificationPendingTitle')"
       >
-        资料已于 {{ fmtTime(dev?.developer_applied_at) }} 提交（{{ dev?.company || '—' }} / {{ dev?.contact || '—' }}），管理员审核通过后即可创建应用。审核期间可先阅读接入文档。
+        {{ t('developer.apps.qualificationPendingDesc', { time: fmtTime(dev?.developer_applied_at), company: dev?.company || '—', contact: dev?.contact || '—' }) }}
       </el-alert>
       <el-alert
         v-else-if="dev?.developer_status === 'rejected'"
@@ -83,9 +83,9 @@
         type="error"
         :closable="false"
         show-icon
-        title="开发者资格申请未通过"
+        :title="t('developer.apps.qualificationRejectedTitle')"
       >
-        {{ dev?.developer_reject_reason || '资料不完整，请修改后重新提交' }} · 点击「新建应用」即可更新资料并重新提交。
+        {{ dev?.developer_reject_reason || t('developer.apps.incompleteProfile') }}{{ t('developer.apps.qualificationRejectedDesc') }}
       </el-alert>
       <el-alert
         v-else-if="dev?.developer_status === 'approved'"
@@ -93,9 +93,9 @@
         type="success"
         :closable="false"
         show-icon
-        title="已通过开发者资格审核"
+        :title="t('developer.apps.qualificationApprovedTitle')"
       >
-        你现在可以创建接入应用，提交后还需管理员审核应用本身才能发起 OIDC 登录。
+        {{ t('developer.apps.qualificationApprovedDesc') }}
       </el-alert>
       <el-alert
         v-else
@@ -103,9 +103,9 @@
         type="info"
         :closable="false"
         show-icon
-        title="当前为普通用户"
+        :title="t('developer.apps.normalUserTitle')"
       >
-        你可以查看资料、浏览文档与应用列表。点击「新建应用」时补充资料并提交审核，通过后即可创建应用。
+        {{ t('developer.apps.normalUserDesc') }}
       </el-alert>
     </section>
 
@@ -115,33 +115,33 @@
         <div class="panel-title">
           <span class="panel-index">02</span>
           <div>
-            <h3>我的应用</h3>
-            <p>共 {{ apps.length }} 个应用 · 审核状态与回调地址一目了然</p>
+            <h3>{{ t('developer.apps.myAppsTitle') }}</h3>
+            <p>{{ t('developer.apps.appsSummary', { count: apps.length }) }}</p>
           </div>
         </div>
         <!-- 按钮对所有用户常显可点：资格检测发生在点击时 -->
-        <el-button type="primary" round @click="handleNewApp">+ 新建应用</el-button>
+        <el-button type="primary" round @click="handleNewApp">{{ t('developer.apps.newApp') }}</el-button>
       </div>
 
       <div class="card-toolbar">
         <el-input
           v-model="keyword"
-          placeholder="搜索应用名称或 client_id"
+          :placeholder="t('developer.apps.searchPlaceholder')"
           clearable
           :prefix-icon="Search"
           style="width: 280px"
         />
         <el-radio-group v-model="categoryFilter" class="cat-filter">
-          <el-radio-button value="">全类目</el-radio-button>
-          <el-radio-button value="web_app">网站应用</el-radio-button>
-          <el-radio-button value="mobile_app">移动应用</el-radio-button>
-          <el-radio-button value="mini_program">小程序</el-radio-button>
+          <el-radio-button value="">{{ t('developer.apps.catAll') }}</el-radio-button>
+          <el-radio-button value="web_app">{{ t('developer.apps.catWeb') }}</el-radio-button>
+          <el-radio-button value="mobile_app">{{ t('developer.apps.catMobile') }}</el-radio-button>
+          <el-radio-button value="mini_program">{{ t('developer.apps.catMini') }}</el-radio-button>
         </el-radio-group>
-        <el-button text type="primary" @click="loadApps">刷新列表</el-button>
+        <el-button text type="primary" @click="loadApps">{{ t('developer.apps.refreshList') }}</el-button>
       </div>
 
       <el-table :data="filteredApps" v-loading="loading" class="apps-table">
-        <el-table-column prop="client_name" label="应用" min-width="180">
+        <el-table-column prop="client_name" :label="t('developer.apps.colApp')" min-width="180">
           <template #default="{ row }">
             <div class="app-name">
               <div class="app-avatar">
@@ -155,17 +155,17 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="类目" width="110">
+        <el-table-column :label="t('developer.apps.colCategory')" width="110">
           <template #default="{ row }">
             <el-tag size="small" effect="plain" round>{{ categoryLabel(row.category) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="回调地址" min-width="220">
+        <el-table-column :label="t('developer.apps.colRedirectUris')" min-width="220">
           <template #default="{ row }">
             <div v-for="u in row.redirect_uris" :key="u" class="uri-line">{{ u }}</div>
           </template>
         </el-table-column>
-        <el-table-column label="审核状态" width="110">
+        <el-table-column :label="t('developer.apps.colStatus')" width="110">
           <template #default="{ row }">
             <el-tooltip :content="row.reject_reason" :disabled="!row.reject_reason" placement="top">
               <el-tag :type="statusTag(row.status)" size="small" round effect="light">
@@ -174,7 +174,7 @@
             </el-tooltip>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column :label="t('developer.common.actions')" width="120" fixed="right">
           <template #default="{ row }">
             <el-button
               size="small"
@@ -183,12 +183,12 @@
               :disabled="row.status === 'pending'"
               @click="$router.push(`/apps/${row.client_id}/edit`)"
             >
-              编辑
+              {{ t('developer.common.edit') }}
             </el-button>
           </template>
         </el-table-column>
         <template #empty>
-          <el-empty description="还没有应用，点击右上角「新建应用」开始" />
+          <el-empty :description="t('developer.apps.emptyApps')" />
         </template>
       </el-table>
     </section>
@@ -200,7 +200,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Search, EditPen } from '@element-plus/icons-vue';
-import { CATEGORY_LABELS } from '../../api';
+import { useI18n } from 'vue-i18n';
 import devApi, {
   DevAppRow,
   DeveloperInfo,
@@ -210,6 +210,7 @@ import devApi, {
 } from '../../api/dev';
 
 const router = useRouter();
+const { t } = useI18n();
 const loading = ref(false);
 const loadingUser = ref(true);
 const apps = ref<DevAppRow[]>([]);
@@ -217,12 +218,22 @@ const dev = ref<DeveloperInfo | null>(getCurrentDeveloper());
 const keyword = ref('');
 const categoryFilter = ref('');
 
+const CATEGORY_TEXTS: Record<string, string> = {
+  web_app: 'developer.apps.catWeb',
+  mobile_app: 'developer.apps.catMobile',
+  mini_program: 'developer.apps.catMini',
+};
+
 function categoryLabel(cat?: string): string {
-  return (cat && CATEGORY_LABELS[cat]) || '网站应用';
+  return t((cat && CATEGORY_TEXTS[cat]) || 'developer.apps.catWeb');
 }
 
 const avatarText = computed(() => (dev.value?.email || '?').slice(0, 1).toUpperCase());
-const accountText = computed(() => (dev.value?.status === 'suspended' ? '已停用' : '正常'));
+const accountText = computed(() =>
+  dev.value?.status === 'suspended'
+    ? t('developer.common.statusSuspended')
+    : t('developer.common.statusNormal'),
+);
 const qualificationTag = computed(
   () =>
     ({
@@ -235,11 +246,11 @@ const qualificationTag = computed(
 const qualificationText = computed(
   () =>
     ({
-      none: '普通用户',
-      pending: '资格审核中',
-      approved: '已认证开发者',
-      rejected: '申请未通过',
-    }[dev.value?.developer_status || 'none'] || '普通用户'),
+      none: t('developer.common.qualNone'),
+      pending: t('developer.common.qualPending'),
+      approved: t('developer.common.qualApproved'),
+      rejected: t('developer.common.qualRejected'),
+    }[dev.value?.developer_status || 'none'] || t('developer.common.qualNone')),
 );
 
 const filteredApps = computed(() => {
@@ -275,7 +286,7 @@ async function loadApps() {
     apps.value = data.data;
   } catch (e) {
     apps.value = [];
-    ElMessage.error(extractDevError(e, '应用列表加载失败'));
+    ElMessage.error(extractDevError(e, t('developer.apps.loadFailed')));
   } finally {
     loading.value = false;
   }
@@ -291,17 +302,21 @@ async function handleNewApp() {
   if (!d) return;
   if (d.status === 'suspended') {
     ElMessageBox.alert(
-      d.reject_reason || '账号已被管理员停用，无法创建应用，请联系平台管理员处理。',
-      '账号已停用',
-      { type: 'error', confirmButtonText: '知道了' },
+      d.reject_reason || t('developer.apps.suspendedMsg'),
+      t('developer.common.suspended'),
+      { type: 'error', confirmButtonText: t('developer.common.gotIt') },
     );
     return;
   }
   if (d.developer_status === 'pending') {
     ElMessageBox.alert(
-      `你于 ${fmtTime(d.developer_applied_at)} 提交的资料（${d.company || '—'} / ${d.contact || '—'}）正在审核中，通过后即可创建应用。`,
-      '开发者资格审核中',
-      { type: 'warning', confirmButtonText: '知道了' },
+      t('developer.apps.qualificationPendingMsg', {
+        time: fmtTime(d.developer_applied_at),
+        company: d.company || '—',
+        contact: d.contact || '—',
+      }),
+      t('developer.apps.qualificationPendingTitle'),
+      { type: 'warning', confirmButtonText: t('developer.common.gotIt') },
     );
     return;
   }
@@ -323,8 +338,12 @@ function statusTag(status: string) {
 
 function statusText(status: string) {
   return (
-    { approved: '已通过', pending: '待审核', rejected: '已拒绝', suspended: '已停用' }[status] ||
-    status
+    {
+      approved: t('developer.apps.statusApproved'),
+      pending: t('developer.apps.statusPending'),
+      rejected: t('developer.apps.statusRejected'),
+      suspended: t('developer.apps.statusSuspended'),
+    }[status] || status
   );
 }
 </script>

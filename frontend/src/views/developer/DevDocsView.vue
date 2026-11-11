@@ -1,9 +1,9 @@
 <template>
   <div class="docs-wrap">
     <div class="docs-head">
-      <h2 class="page-title">接入文档</h2>
+      <h2 class="page-title">{{ t('developer.nav.docs') }}</h2>
       <p class="page-desc">
-        标准授权码 + PKCE 流程，三步接入。所有端点均可在 Discovery 文档中自动发现。
+        {{ t('developer.docs.desc') }}
       </p>
     </div>
 
@@ -11,7 +11,7 @@
       <!-- 左侧目录 -->
       <el-col :span="5">
         <div class="toc">
-          <div class="toc-title">目录</div>
+          <div class="toc-title">{{ t('developer.docs.toc') }}</div>
           <a
             v-for="s in sections"
             :key="s.id"
@@ -26,18 +26,18 @@
       <!-- 右侧内容 -->
       <el-col :span="19">
         <div class="doc-block" id="guide">
-          <h3 class="doc-title">🚀 快速接入指南</h3>
+          <h3 class="doc-title">{{ t('developer.docs.guideTitle') }}</h3>
           <el-steps :active="5" align-center class="steps">
-            <el-step title="注册登录" description="注册后即可进入工作台" />
-            <el-step title="新建应用" description="补充资料，资格审核" />
-            <el-step title="提交应用申请" description="工作台 → 新建应用" />
-            <el-step title="应用审核" description="通过后应用生效" />
-            <el-step title="发起授权" description="/auth → code → token" />
+            <el-step :title="t('developer.docs.step1Title')" :description="t('developer.docs.step1Desc')" />
+            <el-step :title="t('developer.docs.step2Title')" :description="t('developer.docs.step2Desc')" />
+            <el-step :title="t('developer.docs.step3Title')" :description="t('developer.docs.step3Desc')" />
+            <el-step :title="t('developer.docs.step4Title')" :description="t('developer.docs.step4Desc')" />
+            <el-step :title="t('developer.docs.step5Title')" description="/auth → code → token" />
           </el-steps>
         </div>
 
         <div class="doc-block" id="authorize">
-          <h3 class="doc-title">1️⃣ 授权端点（浏览器跳转）</h3>
+          <h3 class="doc-title">{{ t('developer.docs.authorizeTitle') }}</h3>
           <pre class="code dark">GET {{ issuer }}/auth?client_id=YOUR_CLIENT_ID
   &amp;response_type=code
   &amp;scope=openid profile email
@@ -48,12 +48,12 @@
           <el-alert
             type="info"
             :closable="false"
-            title="SPA / 小程序必须使用 PKCE（S256）；机密应用建议后端走 client_secret_basic 换令牌。"
+            :title="t('developer.docs.pkceNote')"
           />
         </div>
 
         <div class="doc-block" id="token">
-          <h3 class="doc-title">2️⃣ 令牌端点（服务端调用）</h3>
+          <h3 class="doc-title">{{ t('developer.docs.tokenTitle') }}</h3>
           <pre class="code dark">POST {{ issuer }}/token
 Content-Type: application/x-www-form-urlencoded
 
@@ -61,21 +61,21 @@ grant_type=authorization_code
 code=AUTHORIZATION_CODE
 redirect_uri=YOUR_REDIRECT_URI
 client_id=YOUR_CLIENT_ID
-client_secret=YOUR_CLIENT_SECRET        -- 机密应用
-code_verifier=PKCE_VERIFIER             -- PKCE 应用</pre>
+client_secret=YOUR_CLIENT_SECRET        {{ t('developer.docs.secretAppComment') }}
+code_verifier=PKCE_VERIFIER             {{ t('developer.docs.pkceAppComment') }}</pre>
         </div>
 
         <div class="doc-block" id="userinfo">
-          <h3 class="doc-title">3️⃣ 用户信息</h3>
+          <h3 class="doc-title">{{ t('developer.docs.userinfoTitle') }}</h3>
           <pre class="code dark">GET {{ issuer }}/me
 Authorization: Bearer ACCESS_TOKEN</pre>
           <p class="note">
-            scope 对应 claims：<el-tag size="small" round>profile</el-tag> 昵称头像、<el-tag size="small" round>email</el-tag> 邮箱、<el-tag size="small" round>phone</el-tag> 手机号；用户数据来自平台老系统账号库（只读）。
+            {{ t('developer.docs.scopeClaimsPrefix') }}<el-tag size="small" round>profile</el-tag>{{ t('developer.docs.claimProfile') }}<el-tag size="small" round>email</el-tag>{{ t('developer.docs.claimEmail') }}<el-tag size="small" round>phone</el-tag>{{ t('developer.docs.claimPhone') }}{{ t('developer.docs.claimsSource') }}
           </p>
         </div>
 
         <div class="doc-block" id="endpoints">
-          <h3 class="doc-title">📌 端点速查（Discovery）</h3>
+          <h3 class="doc-title">{{ t('developer.docs.endpointsTitle') }}</h3>
           <el-descriptions :column="2" border>
             <el-descriptions-item label="Discovery">{{ issuer }}/.well-known/openid-configuration</el-descriptions-item>
             <el-descriptions-item label="JWKS">{{ issuer }}/jwks</el-descriptions-item>
@@ -91,16 +91,20 @@ Authorization: Bearer ACCESS_TOKEN</pre>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+
 // 同源部署：直接用当前 origin 作为 issuer
 const issuer = window.location.origin;
 
-const sections = [
-  { id: 'guide', label: '快速接入指南' },
-  { id: 'authorize', label: '授权端点' },
-  { id: 'token', label: '令牌端点' },
-  { id: 'userinfo', label: '用户信息' },
-  { id: 'endpoints', label: '端点速查' },
-];
+const { t } = useI18n();
+const sections = computed(() => [
+  { id: 'guide', label: t('developer.docs.secGuide') },
+  { id: 'authorize', label: t('developer.docs.secAuthorize') },
+  { id: 'token', label: t('developer.docs.secToken') },
+  { id: 'userinfo', label: t('developer.docs.secUserinfo') },
+  { id: 'endpoints', label: t('developer.docs.secEndpoints') },
+]);
 </script>
 
 <style scoped>

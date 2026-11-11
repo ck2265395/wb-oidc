@@ -2,10 +2,10 @@
   <div class="profile-edit-page">
     <div class="page-head">
       <el-button link :icon="ArrowLeft" class="back-btn" @click="router.push(backTarget)">
-        返回{{ backLabel }}
+        {{ t('developer.profile.backTo', { target: backLabel }) }}
       </el-button>
-      <h2 class="page-title">编辑开发者资料</h2>
-      <p class="page-desc">公司 / 团队与联系方式将展示给平台管理员，用于开发者资格审核与应用归属核对。</p>
+      <h2 class="page-title">{{ t('developer.common.editProfile') }}</h2>
+      <p class="page-desc">{{ t('developer.profile.editDesc') }}</p>
     </div>
 
     <section class="panel" v-loading="loading">
@@ -15,7 +15,7 @@
         type="error"
         show-icon
         :closable="false"
-        :title="info?.developer_reject_reason || '上次申请未通过，请更新资料后重新提交'"
+        :title="info?.developer_reject_reason || t('developer.profile.resubmitHint')"
       />
       <el-alert
         v-else-if="info?.developer_status === 'pending'"
@@ -23,7 +23,7 @@
         type="warning"
         show-icon
         :closable="false"
-        title="资格正在审核中，修改资料不会中断审核流程"
+        :title="t('developer.profile.pendingNotice')"
       />
       <el-alert
         v-else-if="info?.developer_status === 'approved'"
@@ -31,32 +31,32 @@
         type="success"
         show-icon
         :closable="false"
-        title="你已通过开发者认证，修改资料不会撤销认证"
+        :title="t('developer.profile.approvedNotice')"
       />
 
       <el-form ref="formRef" :model="form" :rules="rules" label-position="top">
-        <el-form-item label="开发者类型" required>
+        <el-form-item :label="t('developer.profile.fieldType')" required>
           <el-radio-group v-model="form.developer_type">
-            <el-radio value="personal">个人开发者</el-radio>
-            <el-radio value="enterprise">企业开发者</el-radio>
+            <el-radio value="personal">{{ t('developer.profile.typePersonal') }}</el-radio>
+            <el-radio value="enterprise">{{ t('developer.profile.typeEnterprise') }}</el-radio>
           </el-radio-group>
           <div v-if="form.developer_type === 'enterprise'" class="type-hint">
-            企业开发者创建应用时需填写 ICP 备案号，请提供方（公司 / 团队）填写真实全称。
+            {{ t('developer.profile.enterpriseHint') }}
           </div>
         </el-form-item>
-        <el-form-item label="公司 / 团队" prop="company">
-          <el-input v-model="form.company" maxlength="128" placeholder="请填写公司或团队全称" />
+        <el-form-item :label="t('developer.common.company')" prop="company">
+          <el-input v-model="form.company" maxlength="128" :placeholder="t('developer.profile.companyPlaceholder')" />
         </el-form-item>
-        <el-form-item label="联系方式" prop="contact">
-          <el-input v-model="form.contact" maxlength="64" placeholder="手机 / 邮箱 / 即时通讯账号" />
+        <el-form-item :label="t('developer.common.contact')" prop="contact">
+          <el-input v-model="form.contact" maxlength="64" :placeholder="t('developer.profile.contactPlaceholder')" />
         </el-form-item>
       </el-form>
 
       <el-alert type="info" :closable="false" :title="hintText" />
 
       <div class="form-actions">
-        <el-button @click="router.push(backTarget)">取消</el-button>
-        <el-button v-if="canApply" :loading="saving" @click="save(false)">仅保存资料</el-button>
+        <el-button @click="router.push(backTarget)">{{ t('developer.common.cancel') }}</el-button>
+        <el-button v-if="canApply" :loading="saving" @click="save(false)">{{ t('developer.profile.saveOnly') }}</el-button>
         <el-button type="primary" :loading="saving" :disabled="suspended" @click="save(true)">
           {{ primaryText }}
         </el-button>
@@ -69,6 +69,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
+import { useI18n } from 'vue-i18n';
 import type { FormInstance, FormRules } from 'element-plus';
 import { ArrowLeft } from '@element-plus/icons-vue';
 import {
@@ -82,6 +83,7 @@ import {
 
 const route = useRoute();
 const router = useRouter();
+const { t } = useI18n();
 const info = ref<DeveloperInfo | null>(getCurrentDeveloper());
 const formRef = ref<FormInstance>();
 const form = ref({ company: '', contact: '', developer_type: 'personal' as 'personal' | 'enterprise' });
@@ -102,22 +104,22 @@ const backTarget = computed(() => {
   return '/profile';
 });
 const backLabel = computed(() => {
-  const t = backTarget.value;
-  if (t.startsWith('/apps')) return '工作台';
-  if (t.startsWith('/profile')) return '账号资料';
-  return '上一页';
+  const target = backTarget.value;
+  if (target.startsWith('/apps')) return t('developer.nav.workspace');
+  if (target.startsWith('/profile')) return t('developer.nav.accountProfile');
+  return t('developer.profile.backPrevious');
 });
 
-const rules: FormRules = {
+const rules = computed<FormRules>(() => ({
   company: [
-    { required: true, message: '请填写公司 / 团队名称', trigger: 'blur' },
-    { min: 2, message: '至少 2 个字符', trigger: 'blur' },
+    { required: true, message: t('developer.profile.companyRequired'), trigger: 'blur' },
+    { min: 2, message: t('developer.profile.minChars'), trigger: 'blur' },
   ],
   contact: [
-    { required: true, message: '请填写联系方式', trigger: 'blur' },
-    { min: 2, message: '至少 2 个字符', trigger: 'blur' },
+    { required: true, message: t('developer.profile.contactRequired'), trigger: 'blur' },
+    { min: 2, message: t('developer.profile.minChars'), trigger: 'blur' },
   ],
-};
+}));
 
 onMounted(async () => {
   const fresh = await devFetchMe();
@@ -141,22 +143,22 @@ const canApply = computed(
     (info.value?.developer_status === 'none' || info.value?.developer_status === 'rejected'),
 );
 const primaryText = computed(() => {
-  if (suspended.value) return '账号已停用';
-  if (canApply.value) return '保存并提交审核';
-  if (info.value?.developer_status === 'pending') return '保存修改';
-  return '保存资料';
+  if (suspended.value) return t('developer.common.suspended');
+  if (canApply.value) return t('developer.profile.saveAndSubmit');
+  if (info.value?.developer_status === 'pending') return t('developer.common.saveChanges');
+  return t('developer.profile.saveProfile');
 });
 const hintText = computed(() => {
   if (canApply.value) {
-    return '提交审核后由管理员审批，通过后即可创建应用；也可以先「仅保存资料」，稍后再提交。';
+    return t('developer.profile.hintCanApply');
   }
   if (info.value?.developer_status === 'pending') {
-    return '审核期间可以更新资料，资格状态保持「审核中」不变。';
+    return t('developer.profile.hintPending');
   }
   if (info.value?.developer_status === 'approved') {
-    return '已认证开发者可直接修改资料，资格状态保持「已认证」不变。';
+    return t('developer.profile.hintApproved');
   }
-  return '资料保存后仅自己与管理员可见，不会自动提交资格审核。';
+  return t('developer.profile.hintDefault');
 });
 
 async function save(submit: boolean) {
@@ -170,10 +172,14 @@ async function save(submit: boolean) {
         ? await devApplyDeveloper(form.value.company.trim(), form.value.contact.trim(), form.value.developer_type)
         : await devUpdateProfile(form.value.company.trim(), form.value.contact.trim(), form.value.developer_type);
     info.value = updated;
-    ElMessage.success(submit && canApply.value ? '资料已提交，等待管理员审核' : '资料已保存');
+    ElMessage.success(
+      submit && canApply.value
+        ? t('developer.profile.submitted')
+        : t('developer.profile.saved'),
+    );
     router.push(backTarget.value);
   } catch (e) {
-    ElMessage.error(extractDevError(e, '保存失败，请稍后重试'));
+    ElMessage.error(extractDevError(e, t('developer.profile.saveFailed')));
   } finally {
     saving.value = false;
   }

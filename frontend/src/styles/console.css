@@ -1,7 +1,6 @@
 /* 管理控制台专用样式：统一页面头、卡片、表格与统计块，作用域限定 .console-shell */
 .console-shell .cp {
-  max-width: 1440px;
-  margin: 0 auto;
+  width: 100%;
 }
 .console-shell .cp-head {
   display: flex;

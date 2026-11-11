@@ -1,28 +1,28 @@
 <template>
   <ConsolePage
     eyebrow="LEGACY USERS"
-    title="老库用户"
-    desc="直连老系统数据库的只读查询，用于核对存量用户是否可接入。"
+    :title="t('console.legacyUsers.title')"
+    :desc="t('console.legacyUsers.desc')"
   >
     <el-alert
       class="mb16"
       type="info"
       show-icon
       :closable="false"
-      title="只读查询，密码等敏感字段已脱敏"
+      :title="t('console.legacyUsers.alert')"
     />
 
     <el-card shadow="never" class="box-card">
       <div class="cp-toolbar">
       <el-input
         v-model="keyword"
-        placeholder="用户名 / 邮箱 / 手机号"
+        :placeholder="t('console.legacyUsers.searchPlaceholder')"
         clearable
         style="width: 260px"
         @keyup.enter="search"
         @clear="search"
       />
-      <el-button type="primary" @click="search">查询</el-button>
+      <el-button type="primary" @click="search">{{ t('console.common.search') }}</el-button>
     </div>
 
     <el-table :data="users" v-loading="loading" stripe size="small">
@@ -37,7 +37,7 @@
         <template #default="{ row }">{{ formatCell(row[col]) }}</template>
       </el-table-column>
       <template #empty>
-        <el-empty :description="searched ? '没有匹配的用户' : '输入关键词后查询老库用户'" />
+        <el-empty :description="searched ? t('console.legacyUsers.emptyNoMatch') : t('console.legacyUsers.emptyInit')" />
       </template>
     </el-table>
 
@@ -56,9 +56,11 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import ConsolePage from '../../components/console/ConsolePage.vue';
 import api from '../../api';
 
+const { t } = useI18n();
 const loading = ref(false);
 const keyword = ref('');
 const users = ref<Array<Record<string, any>>>([]);

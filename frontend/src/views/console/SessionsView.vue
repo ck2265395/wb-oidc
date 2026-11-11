@@ -1,41 +1,41 @@
 <template>
   <ConsolePage
     eyebrow="SESSIONS"
-    title="会话管理"
-    desc="查看并吊销终端用户的 OIDC 登录会话。"
+    :title="t('console.sessions.title')"
+    :desc="t('console.sessions.desc')"
   >
     <el-alert
       class="mb16"
       type="info"
       show-icon
       :closable="false"
-      title="终端用户通过 OIDC 登录后的会话（oidc-provider Session），吊销后用户需要重新登录。"
+      :title="t('console.sessions.alert')"
     />
 
     <el-card shadow="never" class="box-card">
     <el-table :data="sessions" v-loading="loading" stripe>
-      <el-table-column label="会话 ID" min-width="260">
+      <el-table-column :label="t('console.sessions.colSessionId')" min-width="260">
         <template #default="{ row }">
           <el-text size="small" copyable>{{ row.id }}</el-text>
         </template>
       </el-table-column>
-      <el-table-column prop="account_id" label="登录账号(sub)" min-width="180" />
-      <el-table-column label="登录时间" width="160">
+      <el-table-column prop="account_id" :label="t('console.sessions.colAccount')" min-width="180" />
+      <el-table-column :label="t('console.sessions.colLoginAt')" width="160">
         <template #default="{ row }">{{ row.login_at ? fmtTime(row.login_at) : '—' }}</template>
       </el-table-column>
-      <el-table-column label="已授权应用" width="100">
+      <el-table-column :label="t('console.sessions.colAuthorizedApps')" width="100">
         <template #default="{ row }">{{ row.authorized_clients }}</template>
       </el-table-column>
-      <el-table-column label="过期时间" width="160">
+      <el-table-column :label="t('console.sessions.colExpiresAt')" width="160">
         <template #default="{ row }">{{ row.expires_at ? fmtTime(row.expires_at) : '—' }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="100" fixed="right">
+      <el-table-column :label="t('console.common.actions')" width="100" fixed="right">
         <template #default="{ row }">
-          <el-button size="small" type="danger" link @click="revoke(row)">吊销</el-button>
+          <el-button size="small" type="danger" link @click="revoke(row)">{{ t('console.sessions.revoke') }}</el-button>
         </template>
       </el-table-column>
       <template #empty>
-        <el-empty description="暂无活跃会话" />
+        <el-empty :description="t('console.sessions.empty')" />
       </template>
     </el-table>
 
@@ -53,9 +53,12 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import ConsolePage from '../../components/console/ConsolePage.vue';
 import api from '../../api';
+
+const { t } = useI18n();
 
 interface SessionRow {
   id: string;
@@ -89,15 +92,15 @@ async function loadSessions() {
 async function revoke(row: SessionRow) {
   try {
     await ElMessageBox.confirm(
-      `确认吊销会话 ${row.id.slice(0, 16)}...？该用户需要重新登录。`,
-      '吊销会话',
+      t('console.sessions.revokeConfirm', { id: row.id.slice(0, 16) }),
+      t('console.sessions.revokeTitle'),
       { type: 'warning' },
     );
   } catch {
     return;
   }
   await api.delete(`/api/admin/sessions/${encodeURIComponent(row.id)}`);
-  ElMessage.success('已吊销');
+  ElMessage.success(t('console.sessions.revoked'));
   await loadSessions();
 }
 

@@ -4,13 +4,13 @@
       <!-- 左侧品牌区 -->
       <div class="brand-side">
         <img class="brand-logo" src="/moondrop.ico" alt="Moondrop" />
-        <h2 class="brand-title">Moondrop 开放平台</h2>
-        <p class="brand-desc">接入统一身份认证，触达全平台存量用户</p>
+        <h2 class="brand-title">{{ t('developer.nav.brand') }}</h2>
+        <p class="brand-desc">{{ t('developer.login.brandDesc') }}</p>
         <ul class="brand-points">
-          <li>✓ 标准 OIDC 协议，主流客户端开箱即用</li>
-          <li>✓ 注册即可登录，无需等待审核</li>
-          <li>✓ 新建应用时再补充资料</li>
-          <li>✓ 回调白名单 + 应用审核双重把关</li>
+          <li>{{ t('developer.login.point1') }}</li>
+          <li>{{ t('developer.login.point2') }}</li>
+          <li>{{ t('developer.login.point3') }}</li>
+          <li>{{ t('developer.login.point4') }}</li>
         </ul>
         <div class="brand-deco">
           <span class="deco-badge">authorization_code</span>
@@ -22,40 +22,40 @@
       <!-- 右侧表单区 -->
       <div class="form-side">
         <div class="form-heading">
-          <h1 class="form-title">用户账号</h1>
-          <p class="form-subtitle">一个账号，管理你的资料与接入应用</p>
+          <h1 class="form-title">{{ t('developer.login.formTitle') }}</h1>
+          <p class="form-subtitle">{{ t('developer.login.formSubtitle') }}</p>
         </div>
         <el-tabs v-model="tab" stretch>
-          <el-tab-pane label="登录" name="login">
+          <el-tab-pane :label="t('developer.login.tabLogin')" name="login">
             <el-form ref="loginFormRef" :model="loginForm" :rules="loginRules" label-position="top" size="large">
-              <el-form-item label="邮箱" prop="email">
+              <el-form-item :label="t('developer.common.email')" prop="email">
                 <el-input v-model="loginForm.email" placeholder="you@company.com" @keyup.enter="submitLogin" />
               </el-form-item>
-              <el-form-item label="密码" prop="password">
-                <el-input v-model="loginForm.password" type="password" show-password placeholder="密码" @keyup.enter="submitLogin" />
+              <el-form-item :label="t('developer.common.password')" prop="password">
+                <el-input v-model="loginForm.password" type="password" show-password :placeholder="t('developer.common.password')" @keyup.enter="submitLogin" />
               </el-form-item>
               <el-button type="primary" class="block" size="large" :loading="submitting" @click="submitLogin">
-                登录
+                {{ t('developer.login.submitLogin') }}
               </el-button>
             </el-form>
           </el-tab-pane>
 
-          <el-tab-pane label="注册" name="register">
+          <el-tab-pane :label="t('developer.login.tabRegister')" name="register">
             <el-form ref="regFormRef" :model="regForm" :rules="regRules" label-position="top" size="large">
-              <el-form-item label="邮箱" prop="email">
+              <el-form-item :label="t('developer.common.email')" prop="email">
                 <el-input v-model="regForm.email" placeholder="you@company.com" />
               </el-form-item>
-              <el-form-item label="密码" prop="password">
-                <el-input v-model="regForm.password" type="password" show-password placeholder="至少 10 位，含字母和数字" />
+              <el-form-item :label="t('developer.common.password')" prop="password">
+                <el-input v-model="regForm.password" type="password" show-password :placeholder="t('developer.login.passwordRegHint')" />
               </el-form-item>
               <el-button type="primary" class="block" size="large" :loading="submitting" @click="submitRegister">
-                注册
+                {{ t('developer.login.submitRegister') }}
               </el-button>
               <el-alert
                 class="reg-tip"
                 type="info"
                 :closable="false"
-                title="只需邮箱和密码，注册后即可登录；创建应用时再补充资料。"
+                :title="t('developer.login.regTip')"
               />
             </el-form>
           </el-tab-pane>
@@ -63,29 +63,31 @@
 
         <el-divider />
         <div class="foot">
-          <span>平台管理员？</span>
-          <el-link type="primary" @click="$router.push('/console')">进入管理控制台</el-link>
+          <span>{{ t('developer.login.adminHint') }}</span>
+          <el-link type="primary" @click="$router.push('/console')">{{ t('developer.login.goConsole') }}</el-link>
         </div>
       </div>
     </div>
 
     <!-- 注册成功提示 -->
-    <el-dialog v-model="regOkVisible" title="注册成功" width="420px">
+    <el-dialog v-model="regOkVisible" :title="t('developer.login.regSuccessTitle')" width="420px">
       <el-alert type="success" :closable="false" :title="regOkMessage" />
       <template #footer>
-        <el-button type="primary" @click="regOkVisible = false">知道了</el-button>
+        <el-button type="primary" @click="regOkVisible = false">{{ t('developer.common.gotIt') }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
+import { useI18n } from 'vue-i18n';
 import type { FormInstance, FormRules } from 'element-plus';
 import { devLogin, devRegister, extractDevError, getCurrentDeveloper } from '../../api/dev';
 
+const { t } = useI18n();
 const router = useRouter();
 const route = useRoute();
 const tab = ref<'login' | 'register'>(
@@ -95,27 +97,27 @@ const submitting = ref(false);
 
 const loginFormRef = ref<FormInstance>();
 const loginForm = ref({ email: '', password: '' });
-const loginRules: FormRules = {
+const loginRules = computed<FormRules>(() => ({
   email: [
-    { required: true, message: '请输入邮箱', trigger: 'blur' },
-    { type: 'email', message: '邮箱格式不正确', trigger: 'blur' },
+    { required: true, message: t('developer.login.emailRequired'), trigger: 'blur' },
+    { type: 'email', message: t('developer.login.emailInvalid'), trigger: 'blur' },
   ],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
-};
+  password: [{ required: true, message: t('developer.login.passwordRequired'), trigger: 'blur' }],
+}));
 
 const regFormRef = ref<FormInstance>();
 const regForm = ref({ email: '', password: '' });
-const regRules: FormRules = {
+const regRules = computed<FormRules>(() => ({
   email: [
-    { required: true, message: '请输入邮箱', trigger: 'blur' },
-    { type: 'email', message: '邮箱格式不正确', trigger: 'blur' },
+    { required: true, message: t('developer.login.emailRequired'), trigger: 'blur' },
+    { type: 'email', message: t('developer.login.emailInvalid'), trigger: 'blur' },
   ],
   password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 10, max: 128, message: '密码长度需 10-128 位', trigger: 'blur' },
-    { pattern: /^(?=.*[a-zA-Z])(?=.*\d)/, message: '需同时包含字母和数字', trigger: 'blur' },
+    { required: true, message: t('developer.login.passwordRequired'), trigger: 'blur' },
+    { min: 10, max: 128, message: t('developer.login.passwordLength'), trigger: 'blur' },
+    { pattern: /^(?=.*[a-zA-Z])(?=.*\d)/, message: t('developer.login.passwordPattern'), trigger: 'blur' },
   ],
-};
+}));
 
 const regOkVisible = ref(false);
 const regOkMessage = ref('');
@@ -128,12 +130,12 @@ async function submitLogin() {
   try {
     const dev = await devLogin(loginForm.value.email, loginForm.value.password);
     if (dev.status !== 'active') {
-      ElMessage.warning('账号未通过审核或已停用，功能受限');
+      ElMessage.warning(t('developer.login.inactiveWarning'));
     }
     const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '';
     router.replace(redirect || '/apps');
   } catch (e) {
-    ElMessage.error(extractDevError(e, '登录失败，请稍后重试'));
+    ElMessage.error(extractDevError(e, t('developer.login.loginFailed')));
   } finally {
     submitting.value = false;
   }
@@ -149,13 +151,13 @@ async function submitRegister() {
       email: regForm.value.email,
       password: regForm.value.password,
     });
-    regOkMessage.value = message || '注册成功，现在可以直接登录';
+    regOkMessage.value = message || t('developer.login.regSuccessDefault');
     regOkVisible.value = true;
     loginForm.value.email = regForm.value.email;
     regFormRef.value.resetFields();
     tab.value = 'login';
   } catch (e) {
-    ElMessage.error(extractDevError(e, '注册失败，请稍后重试'));
+    ElMessage.error(extractDevError(e, t('developer.login.registerFailed')));
   } finally {
     submitting.value = false;
   }

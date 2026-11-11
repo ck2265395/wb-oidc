@@ -1,12 +1,12 @@
 <template>
   <ConsolePage
     eyebrow="APPLICATIONS"
-    title="应用管理"
-    desc="管理接入应用、回调白名单、密钥与审核状态。"
+    :title="t('console.clients.title')"
+    :desc="t('console.clients.desc')"
   >
     <template #actions>
-      <el-button :icon="Refresh" @click="loadClients">刷新</el-button>
-      <el-button type="primary" :icon="Plus" @click="openCreate">注册新应用</el-button>
+      <el-button :icon="Refresh" @click="loadClients">{{ t('console.common.refresh') }}</el-button>
+      <el-button type="primary" :icon="Plus" @click="openCreate">{{ t('console.clients.registerNew') }}</el-button>
     </template>
 
     <el-row :gutter="16" class="stat-grid">
@@ -14,9 +14,9 @@
         <el-card shadow="never" class="stat-card">
           <div class="stat-flex">
             <div>
-              <div class="stat-label">接入应用</div>
+              <div class="stat-label">{{ t('console.clients.statTotal') }}</div>
               <div class="stat-value">{{ clients.length }}</div>
-              <div class="stat-sub">平台全部应用</div>
+              <div class="stat-sub">{{ t('console.clients.statTotalSub') }}</div>
             </div>
             <div class="stat-icon"><el-icon><Grid /></el-icon></div>
           </div>
@@ -26,9 +26,9 @@
         <el-card shadow="never" class="stat-card">
           <div class="stat-flex">
             <div>
-              <div class="stat-label">待审核</div>
+              <div class="stat-label">{{ t('console.common.pending') }}</div>
               <div class="stat-value">{{ pendingClients }}</div>
-              <div class="stat-sub">等待处理</div>
+              <div class="stat-sub">{{ t('console.clients.statPendingSub') }}</div>
             </div>
             <div class="stat-icon warn"><el-icon><Bell /></el-icon></div>
           </div>
@@ -38,9 +38,9 @@
         <el-card shadow="never" class="stat-card">
           <div class="stat-flex">
             <div>
-              <div class="stat-label">已通过</div>
+              <div class="stat-label">{{ t('console.common.approved') }}</div>
               <div class="stat-value">{{ approvedClients }}</div>
-              <div class="stat-sub">审核已通过</div>
+              <div class="stat-sub">{{ t('console.clients.statApprovedSub') }}</div>
             </div>
             <div class="stat-icon success"><el-icon><CircleCheck /></el-icon></div>
           </div>
@@ -50,9 +50,9 @@
         <el-card shadow="never" class="stat-card">
           <div class="stat-flex">
             <div>
-              <div class="stat-label">启用中</div>
+              <div class="stat-label">{{ t('console.clients.statEnabled') }}</div>
               <div class="stat-value">{{ enabledClients }}</div>
-              <div class="stat-sub">可发起 OIDC 登录</div>
+              <div class="stat-sub">{{ t('console.clients.statEnabledSub') }}</div>
             </div>
             <div class="stat-icon"><el-icon><Key /></el-icon></div>
           </div>
@@ -63,24 +63,24 @@
     <el-card shadow="never" class="box-card">
       <div class="cp-toolbar">
         <el-radio-group v-model="statusFilter">
-          <el-radio-button value="">全部</el-radio-button>
-          <el-radio-button value="pending">待审核</el-radio-button>
-          <el-radio-button value="approved">已通过</el-radio-button>
+          <el-radio-button value="">{{ t('console.common.all') }}</el-radio-button>
+          <el-radio-button value="pending">{{ t('console.common.pending') }}</el-radio-button>
+          <el-radio-button value="approved">{{ t('console.common.approved') }}</el-radio-button>
         </el-radio-group>
         <el-radio-group v-model="categoryFilter" class="ml12">
-          <el-radio-button value="">全类目</el-radio-button>
-          <el-radio-button value="web_app">网站应用</el-radio-button>
-          <el-radio-button value="mobile_app">移动应用</el-radio-button>
-          <el-radio-button value="mini_program">小程序</el-radio-button>
+          <el-radio-button value="">{{ t('console.clients.allCategories') }}</el-radio-button>
+          <el-radio-button value="web_app">{{ t('console.clients.catWeb') }}</el-radio-button>
+          <el-radio-button value="mobile_app">{{ t('console.clients.catMobile') }}</el-radio-button>
+          <el-radio-button value="mini_program">{{ t('console.clients.catMini') }}</el-radio-button>
         </el-radio-group>
         <div class="spacer" />
         <el-tag v-if="pendingClients" type="warning" effect="light" round size="large">
-          {{ pendingClients }} 个应用待审核
+          {{ t('console.clients.pendingTag', { n: pendingClients }) }}
         </el-tag>
       </div>
 
     <el-table :data="filteredClients" v-loading="loading" stripe>
-      <el-table-column label="应用" min-width="200">
+      <el-table-column :label="t('console.clients.colApp')" min-width="200">
         <template #default="{ row }">
           <div class="app-cell">
             <div class="app-avatar">
@@ -94,34 +94,34 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column prop="developer_email" label="申请人" min-width="160">
+      <el-table-column prop="developer_email" :label="t('console.clients.colApplicant')" min-width="160">
         <template #default="{ row }">
           <span v-if="row.developer_email">{{ row.developer_email }}</span>
-          <el-tag v-else size="small" type="info">平台创建</el-tag>
+          <el-tag v-else size="small" type="info">{{ t('console.clients.platformCreated') }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="类目" width="110">
+      <el-table-column :label="t('console.clients.colCategory')" width="110">
         <template #default="{ row }">
           <el-tag size="small" effect="plain">{{ categoryLabel(row.category) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="回调地址" min-width="220">
+      <el-table-column :label="t('console.clients.colRedirects')" min-width="220">
         <template #default="{ row }">
           <div v-for="u in row.redirect_uris" :key="u" class="uri-line">{{ u }}</div>
         </template>
       </el-table-column>
-      <el-table-column label="状态" width="90">
+      <el-table-column :label="t('console.common.status')" width="90">
         <template #default="{ row }">
           <el-tooltip :content="row.reject_reason" :disabled="!row.reject_reason" placement="top">
             <el-tag :type="reviewTag(row)" size="small">{{ reviewText(row) }}</el-tag>
           </el-tooltip>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="330" fixed="right">
+      <el-table-column :label="t('console.common.actions')" width="330" fixed="right">
         <template #default="{ row }">
           <template v-if="row.status === 'pending'">
-            <el-button size="small" type="success" @click="doReview(row, 'approve')">通过</el-button>
-            <el-button size="small" type="danger" @click="doReview(row, 'reject')">拒绝</el-button>
+            <el-button size="small" type="success" @click="doReview(row, 'approve')">{{ t('console.common.approve') }}</el-button>
+            <el-button size="small" type="danger" @click="doReview(row, 'reject')">{{ t('console.common.reject') }}</el-button>
           </template>
           <el-button
             size="small"
@@ -130,9 +130,9 @@
             @click="startTestLogin(row)"
             :disabled="!sameOriginRedirect(row)"
           >
-            测试登录
+            {{ t('console.clients.testLogin') }}
           </el-button>
-          <el-button size="small" link @click="openEdit(row)">编辑</el-button>
+          <el-button size="small" link @click="openEdit(row)">{{ t('console.common.edit') }}</el-button>
           <el-button
             v-if="row.application_type !== 'spa'"
             size="small"
@@ -140,52 +140,52 @@
             link
             @click="doRotate(row)"
           >
-            轮换密钥
+            {{ t('console.clients.rotateSecret') }}
           </el-button>
           <el-button size="small" type="warning" link @click="toggle(row)">
-            {{ row.enabled ? '停用' : '启用' }}
+            {{ row.enabled ? t('console.common.disable') : t('console.common.enable') }}
           </el-button>
-          <el-button size="small" type="danger" link @click="remove(row)">删除</el-button>
+          <el-button size="small" type="danger" link @click="remove(row)">{{ t('console.common.remove') }}</el-button>
         </template>
       </el-table-column>
     </el-table>
     </el-card>
 
     <!-- 创建应用 -->
-    <el-dialog v-model="createVisible" title="注册新应用" width="560px">
+    <el-dialog v-model="createVisible" :title="t('console.clients.registerNew')" width="560px">
       <el-form label-position="top">
-        <el-form-item label="应用名称" required>
-          <el-input v-model="createForm.client_name" placeholder="例如：小鹅砍价小程序" maxlength="64" />
+        <el-form-item :label="t('console.clients.formName')" required>
+          <el-input v-model="createForm.client_name" :placeholder="t('console.clients.namePlaceholder')" maxlength="64" />
         </el-form-item>
-        <el-form-item label="应用图标（100×100）">
+        <el-form-item :label="t('console.clients.formLogo')">
           <div class="logo-upload" @click="openLogoPicker('create')">
-            <img v-if="createForm.logo" :src="createForm.logo" class="logo-preview" alt="应用图标" />
+            <img v-if="createForm.logo" :src="createForm.logo" class="logo-preview" :alt="t('console.clients.logoAlt')" />
             <el-icon v-else class="logo-plus"><Plus /></el-icon>
-            <span v-if="createForm.logo" class="logo-clear" @click.stop="createForm.logo = ''">移除</span>
+            <span v-if="createForm.logo" class="logo-clear" @click.stop="createForm.logo = ''">{{ t('console.clients.removeLogo') }}</span>
           </div>
         </el-form-item>
-        <el-form-item label="应用类目" required>
-          <el-select v-model="createForm.category" placeholder="选择应用类目">
-            <el-option label="网站应用" value="web_app" />
-            <el-option label="移动应用" value="mobile_app" />
-            <el-option label="小程序" value="mini_program" />
+        <el-form-item :label="t('console.clients.formCategory')" required>
+          <el-select v-model="createForm.category" :placeholder="t('console.clients.categoryPlaceholder')">
+            <el-option :label="t('console.clients.catWeb')" value="web_app" />
+            <el-option :label="t('console.clients.catMobile')" value="mobile_app" />
+            <el-option :label="t('console.clients.catMini')" value="mini_program" />
           </el-select>
-          <div class="form-hint">网站应用走 client_secret；移动应用 / 小程序走 PKCE，无需 secret。</div>
+          <div class="form-hint">{{ t('console.clients.categoryHint') }}</div>
         </el-form-item>
-        <el-form-item label="应用简介">
+        <el-form-item :label="t('console.clients.formDesc')">
           <el-input
             v-model="createForm.description"
             type="textarea"
             :rows="3"
             maxlength="200"
             show-word-limit
-            placeholder="一句话介绍这个应用（200 字以内）"
+            :placeholder="t('console.clients.descPlaceholder')"
           />
         </el-form-item>
-        <el-form-item label="官网域名">
+        <el-form-item :label="t('console.clients.formWebsite')">
           <el-input v-model="createForm.website" placeholder="https://www.example.com" />
         </el-form-item>
-        <el-form-item label="回调地址（每行一个）" required>
+        <el-form-item :label="t('console.clients.formRedirects')" required>
           <el-input
             v-model="createForm.redirect_uris_text"
             type="textarea"
@@ -193,16 +193,16 @@
             placeholder="https://app.example.com/auth/callback"
           />
         </el-form-item>
-        <el-form-item label="ICP 备案号">
-          <el-input v-model="createForm.icp_number" placeholder="京ICP备XXXXXXXX号（选填）" />
+        <el-form-item :label="t('console.clients.formIcp')">
+          <el-input v-model="createForm.icp_number" :placeholder="t('console.clients.icpPlaceholder')" />
         </el-form-item>
-        <el-form-item label="标签">
+        <el-form-item :label="t('console.clients.formTags')">
           <el-input
             v-model="createForm.tags_text"
-            placeholder="用逗号分隔，如：内部工具, 数据看板"
+            :placeholder="t('console.clients.tagsPlaceholder')"
           />
         </el-form-item>
-        <el-form-item label="申请的 scopes">
+        <el-form-item :label="t('console.clients.formScopes')">
           <el-checkbox-group v-model="createForm.scopes">
             <el-checkbox value="openid">openid</el-checkbox>
             <el-checkbox value="profile">profile</el-checkbox>
@@ -212,71 +212,71 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="createVisible = false">取消</el-button>
-        <el-button type="primary" :loading="creating" @click="submitCreate">创建</el-button>
+        <el-button @click="createVisible = false">{{ t('console.common.cancel') }}</el-button>
+        <el-button type="primary" :loading="creating" @click="submitCreate">{{ t('console.common.create') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 编辑应用 -->
-    <el-dialog v-model="editVisible" title="编辑应用" width="560px">
+    <el-dialog v-model="editVisible" :title="t('console.clients.editTitle')" width="560px">
       <el-form label-position="top">
-        <el-form-item label="应用名称" required>
+        <el-form-item :label="t('console.clients.formName')" required>
           <el-input v-model="editForm.client_name" maxlength="64" />
         </el-form-item>
-        <el-form-item label="应用图标（100×100）">
+        <el-form-item :label="t('console.clients.formLogo')">
           <div class="logo-upload" @click="openLogoPicker('edit')">
-            <img v-if="editForm.logo" :src="editForm.logo" class="logo-preview" alt="应用图标" />
+            <img v-if="editForm.logo" :src="editForm.logo" class="logo-preview" :alt="t('console.clients.logoAlt')" />
             <el-icon v-else class="logo-plus"><Plus /></el-icon>
-            <span v-if="editForm.logo" class="logo-clear" @click.stop="editForm.logo = ''">移除</span>
+            <span v-if="editForm.logo" class="logo-clear" @click.stop="editForm.logo = ''">{{ t('console.clients.removeLogo') }}</span>
           </div>
         </el-form-item>
-        <el-form-item label="应用类目" required>
-          <el-select v-model="editForm.category" placeholder="选择应用类目">
-            <el-option label="网站应用" value="web_app" />
-            <el-option label="移动应用" value="mobile_app" />
-            <el-option label="小程序" value="mini_program" />
+        <el-form-item :label="t('console.clients.formCategory')" required>
+          <el-select v-model="editForm.category" :placeholder="t('console.clients.categoryPlaceholder')">
+            <el-option :label="t('console.clients.catWeb')" value="web_app" />
+            <el-option :label="t('console.clients.catMobile')" value="mobile_app" />
+            <el-option :label="t('console.clients.catMini')" value="mini_program" />
           </el-select>
-          <div class="form-hint">修改类目会同步调整应用的安全形态（是否需要 client_secret）。</div>
+          <div class="form-hint">{{ t('console.clients.categoryEditHint') }}</div>
         </el-form-item>
-        <el-form-item label="应用简介">
+        <el-form-item :label="t('console.clients.formDesc')">
           <el-input
             v-model="editForm.description"
             type="textarea"
             :rows="3"
             maxlength="200"
             show-word-limit
-            placeholder="一句话介绍这个应用（200 字以内）"
+            :placeholder="t('console.clients.descPlaceholder')"
           />
         </el-form-item>
-        <el-form-item label="官网域名">
+        <el-form-item :label="t('console.clients.formWebsite')">
           <el-input v-model="editForm.website" placeholder="https://www.example.com" />
         </el-form-item>
-        <el-form-item label="回调地址（每行一个）" required>
+        <el-form-item :label="t('console.clients.formRedirects')" required>
           <el-input v-model="editForm.redirect_uris_text" type="textarea" :rows="3" />
         </el-form-item>
-        <el-form-item label="ICP 备案号">
-          <el-input v-model="editForm.icp_number" placeholder="京ICP备XXXXXXXX号（选填）" />
+        <el-form-item :label="t('console.clients.formIcp')">
+          <el-input v-model="editForm.icp_number" :placeholder="t('console.clients.icpPlaceholder')" />
         </el-form-item>
-        <el-form-item label="标签">
-          <el-input v-model="editForm.tags_text" placeholder="用逗号分隔，如：内部工具, 数据看板" />
+        <el-form-item :label="t('console.clients.formTags')">
+          <el-input v-model="editForm.tags_text" :placeholder="t('console.clients.tagsPlaceholder')" />
         </el-form-item>
-        <el-form-item label="scopes（空格分隔，必须含 openid）">
+        <el-form-item :label="t('console.clients.formScopeEdit')">
           <el-input v-model="editForm.scope" placeholder="openid profile email" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="editVisible = false">取消</el-button>
-        <el-button type="primary" :loading="editing" @click="submitEdit">保存</el-button>
+        <el-button @click="editVisible = false">{{ t('console.common.cancel') }}</el-button>
+        <el-button type="primary" :loading="editing" @click="submitEdit">{{ t('console.common.save') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 凭据展示（创建/轮换共用，仅显示一次） -->
-    <el-dialog v-model="credentialVisible" title="凭据仅显示一次" width="560px">
+    <el-dialog v-model="credentialVisible" :title="t('console.clients.credentialTitle')" width="560px">
       <el-descriptions :column="1" border>
         <el-descriptions-item label="client_id">
           <el-text copyable>{{ credential?.client_id }}</el-text>
         </el-descriptions-item>
-        <el-descriptions-item label="client_secret（新）">
+        <el-descriptions-item :label="t('console.clients.secretNew')">
           <el-text copyable type="danger">{{ credential?.secret }}</el-text>
         </el-descriptions-item>
       </el-descriptions>
@@ -284,21 +284,21 @@
         class="mt16"
         type="warning"
         :closable="false"
-        title="旧 secret 立即失效，请立即保存并更新到应用配置"
+        :title="t('console.clients.credentialAlert')"
       />
     </el-dialog>
 
     <!-- 拒绝理由 -->
-    <el-dialog v-model="rejectVisible" title="填写拒绝理由" width="440px">
+    <el-dialog v-model="rejectVisible" :title="t('console.clients.rejectTitle')" width="440px">
       <el-input
         v-model="rejectReason"
         type="textarea"
         :rows="3"
-        placeholder="请填写拒绝理由（开发者门户可见）"
+        :placeholder="t('console.clients.rejectPlaceholder')"
       />
       <template #footer>
-        <el-button @click="rejectVisible = false">取消</el-button>
-        <el-button type="danger" :loading="rejecting" @click="submitReject">确认拒绝</el-button>
+        <el-button @click="rejectVisible = false">{{ t('console.common.cancel') }}</el-button>
+        <el-button type="danger" :loading="rejecting" @click="submitReject">{{ t('console.clients.confirmReject') }}</el-button>
       </template>
     </el-dialog>
 
@@ -308,6 +308,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   Refresh, Plus, Grid, Bell, CircleCheck, Key,
@@ -315,7 +316,6 @@ import {
 import ConsolePage from '../../components/console/ConsolePage.vue';
 import api, {
   ClientRow,
-  CATEGORY_LABELS,
   createPkce,
   ISSUER,
   rotateClientSecret,
@@ -323,6 +323,7 @@ import api, {
 } from '../../api';
 import { fileToLogo } from '../../utils/logo';
 
+const { t } = useI18n();
 const loading = ref(false);
 const clients = ref<ClientRow[]>([]);
 const statusFilter = ref('');
@@ -381,8 +382,14 @@ const editForm = ref({
   scope: '',
 });
 
+const CATEGORY_KEYS: Record<string, string> = {
+  web_app: 'console.clients.catWeb',
+  mobile_app: 'console.clients.catMobile',
+  mini_program: 'console.clients.catMini',
+};
+
 function categoryLabel(cat?: string): string {
-  return (cat && CATEGORY_LABELS[cat]) || '网站应用';
+  return t((cat && CATEGORY_KEYS[cat]) || 'console.clients.catWeb');
 }
 
 function openLogoPicker(target: 'create' | 'edit') {
@@ -400,7 +407,7 @@ async function onLogoPicked(e: Event) {
     if (logoTarget.value === 'create') createForm.value.logo = dataUrl;
     else editForm.value.logo = dataUrl;
   } catch (err: any) {
-    ElMessage.error(err?.message || '图标处理失败');
+    ElMessage.error(err?.message || t('console.clients.logoError'));
   }
 }
 
@@ -462,7 +469,7 @@ async function submitCreate() {
     credentialVisible.value = true;
     await loadClients();
   } catch (e: any) {
-    ElMessage.error(extractError(e, '创建失败'));
+    ElMessage.error(extractError(e, t('console.clients.createFailed')));
   } finally {
     creating.value = false;
   }
@@ -501,10 +508,10 @@ async function submitEdit() {
       scope: editForm.value.scope,
     });
     editVisible.value = false;
-    ElMessage.success('已保存');
+    ElMessage.success(t('console.common.saved'));
     await loadClients();
   } catch (e: any) {
-    ElMessage.error(extractError(e, '保存失败'));
+    ElMessage.error(extractError(e, t('console.clients.saveFailed')));
   } finally {
     editing.value = false;
   }
@@ -513,8 +520,8 @@ async function submitEdit() {
 async function doRotate(row: ClientRow) {
   try {
     await ElMessageBox.confirm(
-      `确认轮换「${row.client_name}」的 client_secret？旧密钥将立即失效。`,
-      '轮换密钥',
+      t('console.clients.rotateConfirm', { name: row.client_name }),
+      t('console.clients.rotateSecret'),
       { type: 'warning' },
     );
   } catch {
@@ -526,7 +533,7 @@ async function doRotate(row: ClientRow) {
     credentialVisible.value = true;
     await loadClients();
   } catch (e: any) {
-    ElMessage.error(extractError(e, '轮换失败'));
+    ElMessage.error(extractError(e, t('console.clients.rotateFailed')));
   }
 }
 
@@ -537,7 +544,7 @@ async function toggle(row: ClientRow) {
 
 async function remove(row: ClientRow) {
   try {
-    await ElMessageBox.confirm(`确认删除应用「${row.client_name}」？该操作不可恢复`, '警告', {
+    await ElMessageBox.confirm(t('console.clients.deleteConfirm', { name: row.client_name }), t('console.clients.deleteTitle'), {
       type: 'warning',
     });
   } catch {
@@ -545,7 +552,7 @@ async function remove(row: ClientRow) {
   }
   await api.delete(`/api/admin/clients/${row.client_id}`);
   await loadClients();
-  ElMessage.success('已删除');
+  ElMessage.success(t('console.clients.deleted'));
 }
 
 function reviewTag(row: ClientRow): string {
@@ -556,10 +563,10 @@ function reviewTag(row: ClientRow): string {
 
 function reviewText(row: ClientRow): string {
   const map: Record<string, string> = {
-    pending: '待审核',
-    approved: row.enabled ? '启用' : '已停用',
-    rejected: '已拒绝',
-    suspended: '已停用',
+    pending: t('console.common.pending'),
+    approved: row.enabled ? t('console.common.enable') : t('console.clients.statusDisabled'),
+    rejected: t('console.clients.rejected'),
+    suspended: t('console.clients.statusDisabled'),
   };
   return map[row.status] || row.status;
 }
@@ -572,21 +579,21 @@ async function doReview(row: ClientRow, action: 'approve' | 'reject') {
     return;
   }
   try {
-    await ElMessageBox.confirm(`确认通过应用「${row.client_name}」的审核？`, '审核确认', {
+    await ElMessageBox.confirm(t('console.clients.approveConfirm', { name: row.client_name }), t('console.common.reviewConfirmTitle'), {
       type: 'success',
     });
   } catch {
     return;
   }
   await api.post(`/api/admin/clients/${row.client_id}/review`, { action: 'approve' });
-  ElMessage.success('审核通过');
+  ElMessage.success(t('console.clients.reviewApproved'));
   window.dispatchEvent(new Event('console:pending-changed'));
   await loadClients();
 }
 
 async function submitReject() {
   if (!rejectTarget.value || !rejectReason.value.trim()) {
-    ElMessage.warning('请填写拒绝理由');
+    ElMessage.warning(t('console.clients.rejectReasonRequired'));
     return;
   }
   rejecting.value = true;
@@ -596,11 +603,11 @@ async function submitReject() {
       reason: rejectReason.value.trim(),
     });
     rejectVisible.value = false;
-    ElMessage.success('已拒绝');
+    ElMessage.success(t('console.clients.rejected'));
     window.dispatchEvent(new Event('console:pending-changed'));
     await loadClients();
   } catch (e: any) {
-    ElMessage.error(extractError(e, '操作失败'));
+    ElMessage.error(extractError(e, t('console.common.opFailed')));
   } finally {
     rejecting.value = false;
   }

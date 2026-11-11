@@ -1,12 +1,12 @@
 <template>
   <ConsolePage
     eyebrow="DASHBOARD"
-    title="总览"
-    desc="平台接入概况、待办事项与最近管理操作。"
+    :title="t('console.overview.title')"
+    :desc="t('console.overview.desc')"
   >
     <template #actions>
-      <el-button :icon="Refresh" @click="load">刷新数据</el-button>
-      <el-button type="primary" :icon="Bell" @click="goReview">处理待办</el-button>
+      <el-button :icon="Refresh" @click="load">{{ t('console.overview.refreshData') }}</el-button>
+      <el-button type="primary" :icon="Bell" @click="goReview">{{ t('console.overview.handlePending') }}</el-button>
     </template>
 
     <div v-loading="loading">
@@ -15,17 +15,21 @@
         <div class="todo-inner">
           <div class="todo-icon"><el-icon><Bell /></el-icon></div>
           <div class="todo-text">
-            <div class="todo-title">有 {{ pendingTotal }} 条待审核事项需要处理</div>
+            <div class="todo-title">{{ t('console.overview.todoTitle', { n: pendingTotal }) }}</div>
             <div class="todo-desc">
-              开发者资格 {{ num(stats.developers.pending) }} 个 · 应用接入
-              {{ num(stats.clients.pending) }} 个
+              {{
+                t('console.overview.todoDesc', {
+                  dev: num(stats.developers.pending),
+                  app: num(stats.clients.pending),
+                })
+              }}
             </div>
           </div>
           <div class="todo-actions">
             <el-button type="primary" @click="$router.push('/console/developers')">
-              审核开发者资格
+              {{ t('console.overview.reviewDevelopers') }}
             </el-button>
-            <el-button @click="$router.push('/console/clients')">审核应用</el-button>
+            <el-button @click="$router.push('/console/clients')">{{ t('console.overview.reviewApps') }}</el-button>
           </div>
         </div>
       </el-card>
@@ -33,8 +37,8 @@
         <div class="todo-inner">
           <div class="todo-icon success"><el-icon><CircleCheck /></el-icon></div>
           <div class="todo-text">
-            <div class="todo-title">所有审核事项均已处理完毕</div>
-            <div class="todo-desc">新的开发者资格与应用申请会自动出现在这里。</div>
+            <div class="todo-title">{{ t('console.overview.allDoneTitle') }}</div>
+            <div class="todo-desc">{{ t('console.overview.allDoneDesc') }}</div>
           </div>
         </div>
       </el-card>
@@ -44,10 +48,15 @@
           <el-card shadow="never" class="stat-card">
             <div class="stat-flex">
               <div>
-                <div class="stat-label">接入应用</div>
+                <div class="stat-label">{{ t('console.overview.statApps') }}</div>
                 <div class="stat-value">{{ num(stats.clients.total) }}</div>
                 <div class="stat-sub">
-                  通过 {{ num(stats.clients.approved) }} · 待审 {{ num(stats.clients.pending) }}
+                  {{
+                    t('console.overview.statAppsSub', {
+                      approved: num(stats.clients.approved),
+                      pending: num(stats.clients.pending),
+                    })
+                  }}
                 </div>
               </div>
               <div class="stat-icon"><el-icon><Grid /></el-icon></div>
@@ -58,11 +67,16 @@
           <el-card shadow="never" class="stat-card">
             <div class="stat-flex">
               <div>
-                <div class="stat-label">门户注册用户</div>
+                <div class="stat-label">{{ t('console.overview.statUsers') }}</div>
                 <div class="stat-value">{{ num(stats.developers.total) }}</div>
                 <div class="stat-sub">
-                  已认证 {{ num(stats.developers.active) }} · 待审
-                  {{ num(stats.developers.pending) }} · 普通 {{ num(stats.developers.normal) }}
+                  {{
+                    t('console.overview.statUsersSub', {
+                      active: num(stats.developers.active),
+                      pending: num(stats.developers.pending),
+                      normal: num(stats.developers.normal),
+                    })
+                  }}
                 </div>
               </div>
               <div class="stat-icon"><el-icon><User /></el-icon></div>
@@ -73,9 +87,9 @@
           <el-card shadow="never" class="stat-card">
             <div class="stat-flex">
               <div>
-                <div class="stat-label">OIDC 会话</div>
+                <div class="stat-label">{{ t('console.overview.statSessions') }}</div>
                 <div class="stat-value">{{ num(stats.provider_sessions) }}</div>
-                <div class="stat-sub">终端用户在线会话</div>
+                <div class="stat-sub">{{ t('console.overview.statSessionsSub') }}</div>
               </div>
               <div class="stat-icon success"><el-icon><Key /></el-icon></div>
             </div>
@@ -85,9 +99,9 @@
           <el-card shadow="never" class="stat-card">
             <div class="stat-flex">
               <div>
-                <div class="stat-label">老系统用户</div>
+                <div class="stat-label">{{ t('console.overview.statLegacy') }}</div>
                 <div class="stat-value">{{ num(stats.legacy_users) }}</div>
-                <div class="stat-sub">直连老库只读统计</div>
+                <div class="stat-sub">{{ t('console.overview.statLegacySub') }}</div>
               </div>
               <div class="stat-icon"><el-icon><DataAnalysis /></el-icon></div>
             </div>
@@ -100,28 +114,28 @@
           <el-card shadow="never" class="box-card">
             <template #header>
               <div class="card-head">
-                <span class="head-left"><el-icon><Document /></el-icon>最近管理操作</span>
+                <span class="head-left"><el-icon><Document /></el-icon>{{ t('console.overview.recentActions') }}</span>
                 <el-button size="small" text type="primary" @click="$router.push('/console/audit')">
-                  查看全部 →
+                  {{ t('console.overview.viewAll') }} →
                 </el-button>
               </div>
             </template>
             <el-table :data="stats.recent_logs" size="small" stripe>
-              <el-table-column prop="username" label="操作人" width="110">
+              <el-table-column prop="username" :label="t('console.common.operator')" width="110">
                 <template #default="{ row }">{{ row.username || '—' }}</template>
               </el-table-column>
-              <el-table-column prop="action" label="动作" min-width="140">
+              <el-table-column prop="action" :label="t('console.common.action')" min-width="140">
                 <template #default="{ row }">
                   <el-tag size="small" effect="plain">{{ row.action }}</el-tag>
                 </template>
               </el-table-column>
-              <el-table-column prop="target" label="对象" min-width="120">
+              <el-table-column prop="target" :label="t('console.common.target')" min-width="120">
                 <template #default="{ row }">{{ row.target || '—' }}</template>
               </el-table-column>
-              <el-table-column label="时间" width="160">
+              <el-table-column :label="t('console.common.time')" width="160">
                 <template #default="{ row }">{{ fmtTime(row.created_at) }}</template>
               </el-table-column>
-              <template #empty><el-empty description="暂无操作记录" :image-size="60" /></template>
+              <template #empty><el-empty :description="t('console.overview.noLogs')" :image-size="60" /></template>
             </el-table>
           </el-card>
         </el-col>
@@ -129,15 +143,15 @@
           <el-card shadow="never" class="box-card">
             <template #header>
               <div class="card-head">
-                <span class="head-left"><el-icon><Grid /></el-icon>快捷入口</span>
+                <span class="head-left"><el-icon><Grid /></el-icon>{{ t('console.overview.quickLinks') }}</span>
               </div>
             </template>
             <div class="quick-list">
               <div class="quick-item" @click="$router.push('/console/developers')">
                 <div class="quick-icon"><el-icon><User /></el-icon></div>
                 <div class="quick-text">
-                  <div class="quick-title">开发者资格审核</div>
-                  <div class="quick-desc">审核用户提交的开发者资料</div>
+                  <div class="quick-title">{{ t('console.overview.quickDevTitle') }}</div>
+                  <div class="quick-desc">{{ t('console.overview.quickDevDesc') }}</div>
                 </div>
                 <el-tag v-if="num(stats.developers.pending)" type="danger" size="small" effect="dark" round>
                   {{ num(stats.developers.pending) }}
@@ -147,8 +161,8 @@
               <div class="quick-item" @click="$router.push('/console/clients')">
                 <div class="quick-icon"><el-icon><Grid /></el-icon></div>
                 <div class="quick-text">
-                  <div class="quick-title">应用接入审核</div>
-                  <div class="quick-desc">审批应用、回调地址与权限</div>
+                  <div class="quick-title">{{ t('console.overview.quickAppTitle') }}</div>
+                  <div class="quick-desc">{{ t('console.overview.quickAppDesc') }}</div>
                 </div>
                 <el-tag v-if="num(stats.clients.pending)" type="warning" size="small" effect="dark" round>
                   {{ num(stats.clients.pending) }}
@@ -158,16 +172,18 @@
               <div class="quick-item" @click="$router.push('/console/legacy-users')">
                 <div class="quick-icon"><el-icon><Search /></el-icon></div>
                 <div class="quick-text">
-                  <div class="quick-title">老库用户查询</div>
-                  <div class="quick-desc">核对存量用户能否接入登录</div>
+                  <div class="quick-title">{{ t('console.overview.quickLegacyTitle') }}</div>
+                  <div class="quick-desc">{{ t('console.overview.quickLegacyDesc') }}</div>
                 </div>
                 <el-icon class="quick-arrow"><ArrowRight /></el-icon>
               </div>
               <div class="quick-item" @click="$router.push('/console/sessions')">
                 <div class="quick-icon"><el-icon><Key /></el-icon></div>
                 <div class="quick-text">
-                  <div class="quick-title">会话管理</div>
-                  <div class="quick-desc">{{ num(stats.admin_sessions_active) }} 个管理端会话在线</div>
+                  <div class="quick-title">{{ t('console.overview.quickSessionTitle') }}</div>
+                  <div class="quick-desc">
+                    {{ t('console.overview.quickSessionDesc', { n: num(stats.admin_sessions_active) }) }}
+                  </div>
                 </div>
                 <el-icon class="quick-arrow"><ArrowRight /></el-icon>
               </div>
@@ -181,6 +197,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import {
   Refresh, Bell, CircleCheck, Grid, User, Key, DataAnalysis,
@@ -189,6 +206,7 @@ import {
 import ConsolePage from '../../components/console/ConsolePage.vue';
 import api from '../../api';
 
+const { t } = useI18n();
 const router = useRouter();
 
 interface OverviewStats {

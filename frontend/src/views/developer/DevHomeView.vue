@@ -8,25 +8,24 @@
           Moondrop OpenID Connect
         </div>
         <h1 class="hero-title">
-          一次接入，触达<br />
-          <span class="accent">全平台存量用户</span>
+          {{ t('developer.home.heroTitle1') }}<br />
+          <span class="accent">{{ t('developer.home.heroTitle2') }}</span>
         </h1>
         <p class="hero-desc">
-          让你的应用接入 Moondrop 统一身份认证：用户用现有账号一键登录，无需重新注册。
-          标准 OIDC 授权码 + PKCE，机密应用与 SPA / 小程序全支持。
+          {{ t('developer.home.heroDesc') }}
         </p>
         <div class="hero-actions">
           <el-button type="primary" size="large" class="cta" @click="goStart">
-            {{ developer ? '进入工作台' : '立即接入' }}
+            {{ developer ? t('developer.home.enterWorkspace') : t('developer.home.getStarted') }}
           </el-button>
           <el-button size="large" class="cta-ghost" @click="$router.push('/docs')">
-            查看接入文档
+            {{ t('developer.common.viewDocs') }}
           </el-button>
         </div>
         <div class="hero-meta">
-          <span><i />回调白名单严格校验</span>
-          <span><i />应用审核平均 1 个工作日</span>
-          <span><i />RS256 签名 + JWKS 自动发现</span>
+          <span><i />{{ t('developer.home.metaAllowlist') }}</span>
+          <span><i />{{ t('developer.home.metaReviewFast') }}</span>
+          <span><i />{{ t('developer.home.metaSecurity') }}</span>
         </div>
       </div>
     </section>
@@ -34,8 +33,8 @@
     <!-- 特性 -->
     <section class="features">
       <div class="section-inner">
-        <div class="section-eyebrow">PLATFORM CAPABILITIES</div>
-        <h2 class="section-title">为什么选择 Moondrop 开放平台</h2>
+        <div class="section-eyebrow">{{ t('developer.home.eyebrowFeatures') }}</div>
+        <h2 class="section-title">{{ t('developer.home.featuresTitle') }}</h2>
         <el-row :gutter="20" class="feature-row">
           <el-col :span="6" v-for="f in features" :key="f.title">
             <div class="feature-card">
@@ -51,8 +50,8 @@
     <!-- 接入流程 -->
     <section class="flow">
       <div class="section-inner">
-        <div class="section-eyebrow">GET STARTED</div>
-        <h2 class="section-title">四步完成接入</h2>
+        <div class="section-eyebrow">{{ t('developer.home.eyebrowFlow') }}</div>
+        <h2 class="section-title">{{ t('developer.home.flowTitle') }}</h2>
         <el-row :gutter="20" class="flow-row">
           <el-col :span="6" v-for="(s, i) in steps" :key="s.title">
             <div class="step-card">
@@ -69,15 +68,15 @@
     <section class="cta-band">
       <div class="cta-inner">
         <div class="cta-copy">
-          <h3>准备好接入 Moondrop 了吗？</h3>
-          <p>注册即可登录，需要创建应用时再补充资料，审核通过就能开始接入。</p>
+          <h3>{{ t('developer.home.ctaTitle') }}</h3>
+          <p>{{ t('developer.home.ctaDesc') }}</p>
         </div>
         <div class="cta-action">
           <el-button size="large" class="cta-on-dark" @click="goStart">
-            {{ developer ? '进入工作台' : '免费注册账号' }}
+            {{ developer ? t('developer.home.enterWorkspace') : t('developer.home.registerFree') }}
           </el-button>
           <el-button size="large" class="cta-on-dark-ghost" @click="$router.push('/docs')">
-            阅读文档
+            {{ t('developer.home.readDocs') }}
           </el-button>
         </div>
       </div>
@@ -88,9 +87,11 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import { getCurrentDeveloper } from '../../api/dev';
 import DevFeatureIcon from './DevFeatureIcon.vue';
 
+const { t } = useI18n();
 const router = useRouter();
 const developer = computed(() => getCurrentDeveloper());
 
@@ -98,19 +99,19 @@ function goStart() {
   router.push(developer.value ? '/apps' : '/developer/login?tab=register');
 }
 
-const features = [
-  { icon: 'protocol', title: '标准协议', desc: '完整实现 OpenID Connect 1.0，主流 OIDC 客户端库开箱即用，杜绝私有协议锁定。' },
-  { icon: 'users', title: '存量用户直连', desc: '用户数据来自平台既有账号体系，你的用户无需重新注册，登录转化零损耗。' },
-  { icon: 'review', title: '审核机制', desc: '开发者实名注册 + 应用审核双重把关，回调地址白名单严格校验，杜绝开放重定向。' },
-  { icon: 'security', title: '安全默认', desc: '默认授权码 + PKCE，RS256 签名，refresh token 轮换，密钥可随时吊销重置。' },
-];
+const features = computed(() => [
+  { icon: 'protocol', title: t('developer.home.features.protocol.title'), desc: t('developer.home.features.protocol.desc') },
+  { icon: 'users', title: t('developer.home.features.users.title'), desc: t('developer.home.features.users.desc') },
+  { icon: 'review', title: t('developer.home.features.review.title'), desc: t('developer.home.features.review.desc') },
+  { icon: 'security', title: t('developer.home.features.security.title'), desc: t('developer.home.features.security.desc') },
+]);
 
-const steps = [
-  { title: '注册登录', desc: '邮箱注册后即可登录工作台，查看资料与账号状态，无需等待审核。' },
-  { title: '新建应用', desc: '点击「新建应用」时补充资料，由管理员审核开发者资格。' },
-  { title: '提交应用', desc: '资格通过后创建应用，填写回调地址与所需 scope，等待应用审核。' },
-  { title: '集成上线', desc: '应用审核通过即可发起 /auth 授权，用 code 换取 token。' },
-];
+const steps = computed(() => [
+  { title: t('developer.home.steps.register.title'), desc: t('developer.home.steps.register.desc') },
+  { title: t('developer.home.steps.newApp.title'), desc: t('developer.home.steps.newApp.desc') },
+  { title: t('developer.home.steps.submitApp.title'), desc: t('developer.home.steps.submitApp.desc') },
+  { title: t('developer.home.steps.launch.title'), desc: t('developer.home.steps.launch.desc') },
+]);
 </script>
 
 <style scoped>

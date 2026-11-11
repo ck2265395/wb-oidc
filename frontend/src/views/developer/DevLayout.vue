@@ -6,28 +6,28 @@
         <div class="brand" @click="$router.push('/')">
           <img class="brand-logo" src="/moondrop.ico" alt="Moondrop" />
           <div class="brand-text">
-            <span class="brand-name">Moondrop 开放平台</span>
-            <span class="brand-sub">统一身份认证 · OIDC</span>
+            <span class="brand-name">{{ t('developer.nav.brand') }}</span>
+            <span class="brand-sub">{{ t('developer.nav.brandSub') }}</span>
           </div>
         </div>
 
         <nav class="menu">
-          <RouterLink to="/" class="menu-item" :class="{ active: route.path === '/' }">首页</RouterLink>
-          <RouterLink to="/docs" class="menu-item" :class="{ active: route.path === '/docs' }">接入文档</RouterLink>
+          <RouterLink to="/" class="menu-item" :class="{ active: route.path === '/' }">{{ t('developer.nav.home') }}</RouterLink>
+          <RouterLink to="/docs" class="menu-item" :class="{ active: route.path === '/docs' }">{{ t('developer.nav.docs') }}</RouterLink>
           <RouterLink
             to="/apps"
             class="menu-item"
             :class="{ active: route.path === '/apps' || route.path.startsWith('/apps/') }"
           >
-            工作台
+            {{ t('developer.nav.workspace') }}
           </RouterLink>
         </nav>
 
         <div class="nav-right">
           <template v-if="!developer">
-            <el-button text @click="$router.push('/developer/login?tab=login')">登录</el-button>
+            <el-button text @click="$router.push('/developer/login?tab=login')">{{ t('developer.nav.signIn') }}</el-button>
             <el-button type="primary" round @click="$router.push('/developer/login?tab=register')">
-              免费注册
+              {{ t('developer.nav.register') }}
             </el-button>
           </template>
           <template v-else>
@@ -39,9 +39,9 @@
               </div>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <el-dropdown-item command="apps">工作台</el-dropdown-item>
-                  <el-dropdown-item command="profile">账号资料</el-dropdown-item>
-                  <el-dropdown-item divided command="logout">退出登录</el-dropdown-item>
+                  <el-dropdown-item command="apps">{{ t('developer.nav.workspace') }}</el-dropdown-item>
+                  <el-dropdown-item command="profile">{{ t('developer.nav.accountProfile') }}</el-dropdown-item>
+                  <el-dropdown-item divided command="logout">{{ t('developer.nav.logout') }}</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
@@ -60,11 +60,11 @@
       <div class="footer-inner">
         <div class="footer-brand">
           <img class="footer-logo" src="/moondrop.ico" alt="Moondrop" />
-          <span>© 2026 Moondrop 开放平台 · 基于 OIDC 标准协议</span>
+          <span>{{ t('developer.nav.copyright') }}</span>
         </div>
         <el-space :size="16">
-          <RouterLink to="/docs" class="footer-link">接入文档</RouterLink>
-          <RouterLink to="/" class="footer-link">首页</RouterLink>
+          <RouterLink to="/docs" class="footer-link">{{ t('developer.nav.docs') }}</RouterLink>
+          <RouterLink to="/" class="footer-link">{{ t('developer.nav.home') }}</RouterLink>
         </el-space>
       </div>
     </footer>
@@ -74,6 +74,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import { ArrowDown } from '@element-plus/icons-vue';
 import {
@@ -86,6 +87,7 @@ import {
 
 const route = useRoute();
 const router = useRouter();
+const { t } = useI18n();
 const developer = ref<DeveloperInfo | null>(getCurrentDeveloper());
 
 onMounted(refreshUser);
@@ -108,7 +110,7 @@ async function onCommand(cmd: string) {
     try {
       await devLogout();
     } finally {
-      ElMessage.success('已退出登录');
+      ElMessage.success(t('developer.nav.logoutSuccess'));
       router.replace('/');
     }
   }

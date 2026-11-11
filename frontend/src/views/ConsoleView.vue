@@ -6,7 +6,7 @@
           <img class="brand-logo" src="/moondrop.ico" alt="M" />
           <div class="brand-text">
             <div class="brand-name">Moondrop</div>
-            <div class="brand-sub">统一身份管理控制台</div>
+            <div class="brand-sub">{{ t('console.shell.brandSub') }}</div>
           </div>
         </div>
 
@@ -15,19 +15,18 @@
             :default-active="route.path"
             router
             class="menu"
-            background-color="#0b1a33"
             text-color="#9fb0c9"
             active-text-color="#ffffff"
           >
-            <el-menu-item-group title="工作台">
+            <el-menu-item-group :title="t('console.nav.groupWorkspace')">
               <el-menu-item index="/console/overview">
-                <el-icon><Odometer /></el-icon><span>总览</span>
+                <el-icon><Odometer /></el-icon><span>{{ t('console.nav.overview') }}</span>
               </el-menu-item>
             </el-menu-item-group>
 
-            <el-menu-item-group title="审核管理">
+            <el-menu-item-group :title="t('console.nav.groupReview')">
               <el-menu-item index="/console/developers">
-                <el-icon><User /></el-icon><span>开发者审核</span>
+                <el-icon><User /></el-icon><span>{{ t('console.nav.developers') }}</span>
                 <el-tag
                   v-if="pendingDevelopers"
                   size="small"
@@ -40,7 +39,7 @@
                 </el-tag>
               </el-menu-item>
               <el-menu-item index="/console/clients">
-                <el-icon><Grid /></el-icon><span>应用管理</span>
+                <el-icon><Grid /></el-icon><span>{{ t('console.nav.clients') }}</span>
                 <el-tag
                   v-if="pendingClients"
                   size="small"
@@ -54,25 +53,25 @@
               </el-menu-item>
             </el-menu-item-group>
 
-            <el-menu-item-group title="系统与用户">
+            <el-menu-item-group :title="t('console.nav.groupSystem')">
               <el-menu-item index="/console/admins">
-                <el-icon><UserFilled /></el-icon><span>管理员</span>
+                <el-icon><UserFilled /></el-icon><span>{{ t('console.nav.admins') }}</span>
               </el-menu-item>
               <el-menu-item index="/console/legacy-users">
-                <el-icon><Search /></el-icon><span>老库用户</span>
+                <el-icon><Search /></el-icon><span>{{ t('console.nav.legacyUsers') }}</span>
               </el-menu-item>
               <el-menu-item index="/console/audit">
-                <el-icon><Document /></el-icon><span>审计日志</span>
+                <el-icon><Document /></el-icon><span>{{ t('console.nav.audit') }}</span>
               </el-menu-item>
               <el-menu-item index="/console/sessions">
-                <el-icon><Key /></el-icon><span>会话管理</span>
+                <el-icon><Key /></el-icon><span>{{ t('console.nav.sessions') }}</span>
               </el-menu-item>
             </el-menu-item-group>
           </el-menu>
         </div>
 
         <div class="aside-foot">
-          <RouterLink to="/" class="back-portal">← 返回开放平台</RouterLink>
+          <RouterLink to="/" class="back-portal">← {{ t('console.shell.backPortal') }}</RouterLink>
           <div class="version">Moondrop OIDC · v1.0</div>
         </div>
       </el-aside>
@@ -80,17 +79,17 @@
       <el-container>
         <el-header height="64px" class="header">
           <el-breadcrumb separator="/" class="crumb">
-            <el-breadcrumb-item>控制台</el-breadcrumb-item>
+            <el-breadcrumb-item>{{ t('console.shell.breadcrumb') }}</el-breadcrumb-item>
             <el-breadcrumb-item>{{ currentTitle }}</el-breadcrumb-item>
           </el-breadcrumb>
 
           <div class="header-right">
-            <el-tooltip content="刷新待办数量" placement="bottom">
+            <el-tooltip :content="t('console.shell.refreshPending')" placement="bottom">
               <el-button text circle :icon="Refresh" @click="loadPending" />
             </el-tooltip>
             <el-badge :value="pendingTotal" :hidden="!pendingTotal" :max="99">
               <el-button plain type="primary" @click="goPending">
-                <el-icon style="margin-right: 6px"><Bell /></el-icon>待办审核
+                <el-icon style="margin-right: 6px"><Bell /></el-icon>{{ t('console.shell.pendingReview') }}
               </el-button>
             </el-badge>
             <el-dropdown trigger="click" @command="onCommand">
@@ -98,7 +97,7 @@
                 <el-avatar :size="30" class="admin-avatar">{{ avatarText }}</el-avatar>
                 <div class="admin-meta">
                   <div class="admin-name">
-                    {{ admin?.display_name || admin?.username || '管理员' }}
+                    {{ admin?.display_name || admin?.username || t('console.shell.defaultAdminName') }}
                   </div>
                   <div class="admin-role">{{ roleText }}</div>
                 </div>
@@ -107,13 +106,13 @@
               <template #dropdown>
                 <el-dropdown-menu>
                   <el-dropdown-item command="password">
-                    <el-icon><EditPen /></el-icon>修改密码
+                    <el-icon><EditPen /></el-icon>{{ t('console.shell.changePassword') }}
                   </el-dropdown-item>
                   <el-dropdown-item command="portal">
-                    <el-icon><HomeFilled /></el-icon>开放平台首页
+                    <el-icon><HomeFilled /></el-icon>{{ t('console.shell.portalHome') }}
                   </el-dropdown-item>
                   <el-dropdown-item divided command="logout">
-                    <el-icon><SwitchButton /></el-icon>退出登录
+                    <el-icon><SwitchButton /></el-icon>{{ t('console.nav.logout') }}
                   </el-dropdown-item>
                 </el-dropdown-menu>
               </template>
@@ -128,45 +127,45 @@
     </el-container>
 
     <!-- 修改管理员密码 -->
-    <el-dialog v-model="pwdVisible" title="修改管理员密码" width="440px" @closed="resetPwdForm">
+    <el-dialog v-model="pwdVisible" :title="t('console.shell.pwdTitle')" width="440px" @closed="resetPwdForm">
       <el-form ref="pwdFormRef" :model="pwdForm" :rules="pwdRules" label-position="top">
-        <el-form-item label="原密码" prop="oldPassword">
+        <el-form-item :label="t('console.shell.pwdOld')" prop="oldPassword">
           <el-input
             v-model="pwdForm.oldPassword"
             type="password"
             show-password
             autocomplete="current-password"
-            placeholder="当前登录密码"
+            :placeholder="t('console.shell.pwdOldPlaceholder')"
           />
         </el-form-item>
-        <el-form-item label="新密码" prop="newPassword">
+        <el-form-item :label="t('console.shell.pwdNew')" prop="newPassword">
           <el-input
             v-model="pwdForm.newPassword"
             type="password"
             show-password
             autocomplete="new-password"
-            placeholder="至少 10 位，含字母和数字"
+            :placeholder="t('console.common.passwordRule')"
           />
         </el-form-item>
-        <el-form-item label="确认新密码" prop="confirmPassword">
+        <el-form-item :label="t('console.shell.pwdConfirm')" prop="confirmPassword">
           <el-input
             v-model="pwdForm.confirmPassword"
             type="password"
             show-password
             autocomplete="new-password"
-            placeholder="再输入一次新密码"
+            :placeholder="t('console.shell.pwdConfirmPlaceholder')"
           />
         </el-form-item>
       </el-form>
       <el-alert
         type="warning"
         :closable="false"
-        title="修改成功后所有设备都会退出登录，需要用新密码重新登录。"
+        :title="t('console.shell.pwdAlert')"
       />
       <template #footer>
-        <el-button @click="pwdVisible = false">取消</el-button>
+        <el-button @click="pwdVisible = false">{{ t('console.common.cancel') }}</el-button>
         <el-button type="primary" :loading="pwdSubmitting" @click="submitPassword">
-          确认修改
+          {{ t('console.shell.pwdSubmit') }}
         </el-button>
       </template>
     </el-dialog>
@@ -175,6 +174,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
@@ -201,27 +201,30 @@ import api, {
   AdminInfo,
 } from '../api';
 
+const { t } = useI18n();
 const router = useRouter();
 const route = useRoute();
 const admin = ref<AdminInfo | null>(getCurrentAdmin());
 
-const PAGE_TITLES: Record<string, string> = {
-  overview: '总览',
-  developers: '开发者审核',
-  clients: '应用管理',
-  admins: '管理员',
-  'legacy-users': '老库用户',
-  audit: '审计日志',
-  sessions: '会话管理',
+const PAGE_TITLE_KEYS: Record<string, string> = {
+  overview: 'console.nav.overview',
+  developers: 'console.nav.developers',
+  clients: 'console.nav.clients',
+  admins: 'console.nav.admins',
+  'legacy-users': 'console.nav.legacyUsers',
+  audit: 'console.nav.audit',
+  sessions: 'console.nav.sessions',
 };
 const currentTitle = computed(
-  () => PAGE_TITLES[route.path.split('/').pop() || ''] || '控制台',
+  () => t(PAGE_TITLE_KEYS[route.path.split('/').pop() || ''] || 'console.shell.breadcrumb'),
 );
 const avatarText = computed(() =>
   (admin.value?.display_name || admin.value?.username || 'A').slice(0, 1).toUpperCase(),
 );
 const roleText = computed(() =>
-  admin.value?.role === 'super_admin' ? '超级管理员' : '运营管理员',
+  admin.value?.role === 'super_admin'
+    ? t('console.shell.roleSuperAdmin')
+    : t('console.shell.roleOperator'),
 );
 
 /** 待办角标：审核动作后子页面会派发 console:pending-changed 通知刷新 */
@@ -269,7 +272,7 @@ async function handleLogout() {
   try {
     await logout();
   } finally {
-    ElMessage.success('已退出登录');
+    ElMessage.success(t('console.shell.loggedOut'));
     router.replace('/login');
   }
 }
@@ -280,17 +283,17 @@ const pwdSubmitting = ref(false);
 const pwdFormRef = ref<FormInstance>();
 const pwdForm = ref({ oldPassword: '', newPassword: '', confirmPassword: '' });
 const pwdRules: FormRules = {
-  oldPassword: [{ required: true, message: '请输入原密码', trigger: 'blur' }],
+  oldPassword: [{ required: true, message: t('console.shell.pwdOldRequired'), trigger: 'blur' }],
   newPassword: [
-    { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 10, max: 128, message: '密码长度需 10-128 位', trigger: 'blur' },
-    { pattern: /^(?=.*[a-zA-Z])(?=.*\d)/, message: '需同时包含字母和数字', trigger: 'blur' },
+    { required: true, message: t('console.shell.pwdNewRequired'), trigger: 'blur' },
+    { min: 10, max: 128, message: t('console.shell.pwdLength'), trigger: 'blur' },
+    { pattern: /^(?=.*[a-zA-Z])(?=.*\d)/, message: t('console.common.passwordAlphaNum'), trigger: 'blur' },
   ],
   confirmPassword: [
-    { required: true, message: '请再次输入新密码', trigger: 'blur' },
+    { required: true, message: t('console.shell.pwdConfirmRequired'), trigger: 'blur' },
     {
       validator: (_rule, value, callback) => {
-        if (value !== pwdForm.value.newPassword) callback(new Error('两次输入的密码不一致'));
+        if (value !== pwdForm.value.newPassword) callback(new Error(t('console.shell.pwdMismatch')));
         else callback();
       },
       trigger: 'blur',
@@ -316,11 +319,11 @@ async function submitPassword() {
   try {
     await changePassword(pwdForm.value.oldPassword, pwdForm.value.newPassword);
     pwdVisible.value = false;
-    ElMessage.success('密码已修改，请用新密码重新登录');
+    ElMessage.success(t('console.shell.pwdChanged'));
     setTimeout(() => router.replace('/login'), 800);
   } catch (e: any) {
     const msg = e?.response?.data?.message;
-    ElMessage.error(Array.isArray(msg) ? msg[0] : msg || '修改失败，请稍后重试');
+    ElMessage.error(Array.isArray(msg) ? msg[0] : msg || t('console.shell.pwdChangeFailed'));
   } finally {
     pwdSubmitting.value = false;
   }
@@ -336,7 +339,7 @@ async function submitPassword() {
   height: 100vh;
 }
 .aside {
-  background: #0b1a33;
+  background: var(--aside-bg);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -377,7 +380,7 @@ async function submitPassword() {
 .menu {
   border-right: none;
   padding: 8px;
-  background: #0b1a33;
+  background: transparent;
 }
 .console-shell :deep(.el-menu-item-group__title) {
   padding: 18px 14px 8px;
@@ -398,8 +401,8 @@ async function submitPassword() {
 }
 .console-shell :deep(.menu .el-menu-item.is-active) {
   color: #fff !important;
-  background: linear-gradient(90deg, rgba(11, 87, 208, 0.42), rgba(11, 87, 208, 0.08)) !important;
-  box-shadow: inset 3px 0 0 #4a85e2;
+  background: linear-gradient(90deg, var(--aside-active), transparent) !important;
+  box-shadow: inset 3px 0 0 var(--el-color-primary-light-3);
 }
 .menu-count {
   margin-left: auto;
@@ -429,7 +432,7 @@ async function submitPassword() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #fff;
+  background: var(--paper);
   border-bottom: 1px solid var(--line);
   padding: 0 26px;
 }
@@ -448,10 +451,10 @@ async function submitPassword() {
   transition: background 0.2s;
 }
 .admin-chip:hover {
-  background: #f2f7ff;
+  background: var(--brand-50);
 }
 .admin-avatar {
-  background: linear-gradient(135deg, #0b57d0, #0a3d91);
+  background: linear-gradient(135deg, var(--el-color-primary), var(--brand-700));
   color: #fff;
   font-weight: 700;
   font-size: 13px;

@@ -3,34 +3,34 @@
     <el-card class="login-card">
       <div class="brand">
         <div class="logo">🔐</div>
-        <h2>Moondrop 管理后台</h2>
-        <p class="sub">使用管理员账号登录，管理第三方接入应用</p>
+        <h2>{{ t('common.login.brand') }}</h2>
+        <p class="sub">{{ t('common.login.sub') }}</p>
       </div>
 
       <el-form label-position="top" @submit.prevent="submit">
-        <el-form-item label="用户名">
+        <el-form-item :label="t('common.login.username')">
           <el-input
             v-model="form.username"
             size="large"
-            placeholder="管理员用户名"
+            :placeholder="t('common.login.usernamePlaceholder')"
             autocomplete="username"
             @keyup.enter="submit"
           />
         </el-form-item>
-        <el-form-item label="密码">
+        <el-form-item :label="t('common.login.password')">
           <el-input
             v-model="form.password"
             type="password"
             size="large"
             show-password
-            placeholder="密码"
+            :placeholder="t('common.login.passwordPlaceholder')"
             autocomplete="current-password"
             @keyup.enter="submit"
           />
         </el-form-item>
         <el-alert v-if="error" :title="error" type="error" :closable="false" class="mb16" />
         <el-button type="primary" size="large" class="submit" :loading="loading" @click="submit">
-          登录
+          {{ t('common.login.submit') }}
         </el-button>
       </el-form>
     </el-card>
@@ -41,10 +41,12 @@
 import { reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
+import { useI18n } from 'vue-i18n';
 import { login } from '../api';
 
 const router = useRouter();
 const route = useRoute();
+const { t } = useI18n();
 const form = reactive({ username: '', password: '' });
 const loading = ref(false);
 const error = ref('');
@@ -53,13 +55,13 @@ async function submit() {
   if (loading.value) return;
   error.value = '';
   if (!form.username || !form.password) {
-    error.value = '请输入用户名和密码';
+    error.value = t('common.login.enterBoth');
     return;
   }
   loading.value = true;
   try {
     const admin = await login(form.username.trim(), form.password);
-    ElMessage.success(`欢迎，${admin.display_name || admin.username}`);
+    ElMessage.success(t('common.login.welcome', { name: admin.display_name || admin.username }));
     const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/console';
     // 只允许站内相对路径，防开放重定向
     router.replace(redirect.startsWith('/') ? redirect : '/console');
@@ -70,10 +72,10 @@ async function submit() {
       status === 401
         ? Array.isArray(msg)
           ? msg[0]
-          : msg || '用户名或密码不正确'
+          : msg || t('common.login.err401')
         : status === 429
-          ? '尝试过于频繁，请稍后再试'
-          : '登录失败，请检查网络或后端服务';
+          ? t('common.login.err429')
+          : t('common.login.errNetwork');
   } finally {
     loading.value = false;
   }
@@ -86,7 +88,7 @@ async function submit() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #eaf2ff 0%, #f8fafc 100%);
+  background: linear-gradient(135deg, var(--brand-100) 0%, var(--canvas) 100%);
 }
 .login-card {
   width: 400px;
@@ -108,7 +110,7 @@ async function submit() {
 }
 .sub {
   margin: 0;
-  color: #909399;
+  color: var(--ink-500);
   font-size: 13px;
 }
 .submit {

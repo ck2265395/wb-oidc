@@ -1,8 +1,8 @@
-/* Moondrop 开放平台 · 商务蓝 / 白 / 黑 设计令牌 */
+/* Moondrop 开放平台 · 设计令牌（主色由 useTheme 运行时注入，此处为默认值兜底） */
 :root {
-  /* 品牌蓝 */
+  /* 品牌色（默认商务蓝；运行时被 useTheme 同步覆盖） */
   --brand-900: #061a3a;
-  --brand-800: #082c66;
+  --brand-800: #0946a6;
   --brand-700: #0a3d91;
   --brand-600: #0b57d0;
   --brand-500: #1a6be0;
@@ -19,7 +19,7 @@
   --paper: #ffffff;
   --canvas: #f6f9fd;
 
-  /* 覆盖 element-plus 主色：所有按钮 / 标签 / 菜单 / 链接统一商务蓝 */
+  /* element-plus 主色兜底（运行时被 useTheme 覆盖） */
   --el-color-primary: #0b57d0;
   --el-color-primary-light-3: #4a85e2;
   --el-color-primary-light-5: #85aae8;
@@ -35,6 +35,24 @@
     'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
 }
 
+/* 暗色模式中性色（element-plus dark css-vars 负责组件层，这里覆盖页面自定义 token） */
+html.dark {
+  --brand-900: #050f22;
+  --brand-100: #12244a;
+  --brand-50: #0d1a33;
+
+  --ink-900: #e5eaf3;
+  --ink-700: #b8c0cc;
+  --ink-500: #8b93a1;
+  --ink-300: #5d6572;
+  --line: #2c3441;
+  --paper: #14181f;
+  --canvas: #0d1117;
+
+  --el-border-color: #343c48;
+  --el-text-color-primary: #e5eaf3;
+}
+
 html,
 body {
   margin: 0;
@@ -44,17 +62,15 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* 标题继承 body 的近黑色；深色背景区块由各页面自行覆写，避免全局规则误伤 */
-
-/* 主按钮：稳重实色 + 轻投影，不用花哨渐变 */
+/* 主按钮：稳重实色 + 轻投影，颜色引用主色变量（useTheme 切换即时生效） */
 .el-button--primary {
-  --el-button-bg-color: var(--brand-600);
-  --el-button-border-color: var(--brand-600);
+  --el-button-bg-color: var(--el-color-primary);
+  --el-button-border-color: var(--el-color-primary);
   --el-button-hover-bg-color: var(--brand-700);
   --el-button-hover-border-color: var(--brand-700);
   --el-button-active-bg-color: var(--brand-800);
   --el-button-active-border-color: var(--brand-800);
-  box-shadow: 0 2px 8px rgba(11, 87, 208, 0.18);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
 }
 
 .el-button--primary.is-link,
@@ -66,5 +82,10 @@ body {
 /* 链接 / 菜单激活色 */
 .el-link--primary,
 .el-menu-item.is-active {
-  color: var(--brand-600) !important;
+  color: var(--el-color-primary) !important;
+}
+
+/* 暗色下卡片/表格边线走统一 token，避免刺眼白边 */
+html.dark .el-card {
+  --el-card-bg-color: var(--paper);
 }

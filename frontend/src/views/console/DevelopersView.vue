@@ -1,12 +1,12 @@
 <template>
   <ConsolePage
     eyebrow="QUALIFICATION REVIEW"
-    title="开发者资格审核"
-    desc="审核门户用户提交的开发者资料，通过后该用户才能创建接入应用。"
+    :title="t('console.developers.title')"
+    :desc="t('console.developers.desc')"
   >
     <template #actions>
-      <el-button :icon="Refresh" @click="loadDevelopers">刷新列表</el-button>
-      <el-button type="primary" @click="showPending">查看待审核（{{ pendingCount }}）</el-button>
+      <el-button :icon="Refresh" @click="loadDevelopers">{{ t('console.developers.refreshList') }}</el-button>
+      <el-button type="primary" @click="showPending">{{ t('console.developers.showPending', { n: pendingCount }) }}</el-button>
     </template>
 
     <el-alert
@@ -16,12 +16,12 @@
       show-icon
       :closable="false"
     >
-      <template #title>有 {{ pendingCount }} 位用户正在等待开发者资格审核</template>
-      审核通过后用户即可创建应用；驳回需填写理由，用户可修改资料后重新提交。
+      <template #title>{{ t('console.developers.pendingAlertTitle', { n: pendingCount }) }}</template>
+      {{ t('console.developers.pendingAlertBody') }}
     </el-alert>
     <el-alert v-else class="review-alert" type="success" show-icon :closable="false">
-      <template #title>暂无待审核的开发者资格申请</template>
-      用户在工作台点击「新建应用」并补充资料后，申请会出现在这里。
+      <template #title>{{ t('console.developers.noPendingTitle') }}</template>
+      {{ t('console.developers.noPendingBody') }}
     </el-alert>
 
     <el-row :gutter="16" class="stat-row">
@@ -29,9 +29,9 @@
         <el-card shadow="never" class="stat-card">
           <div class="stat-row-inner">
             <div>
-              <div class="stat-label">门户注册用户</div>
+              <div class="stat-label">{{ t('console.developers.statUsers') }}</div>
               <div class="stat-value">{{ allDevelopers.length }}</div>
-              <div class="stat-sub">全部账号</div>
+              <div class="stat-sub">{{ t('console.developers.statUsersSub') }}</div>
             </div>
             <div class="stat-icon"><el-icon><User /></el-icon></div>
           </div>
@@ -41,9 +41,9 @@
         <el-card shadow="never" class="stat-card">
           <div class="stat-row-inner">
             <div>
-              <div class="stat-label">待审核</div>
+              <div class="stat-label">{{ t('console.common.pending') }}</div>
               <div class="stat-value">{{ pendingCount }}</div>
-              <div class="stat-sub">需要尽快处理</div>
+              <div class="stat-sub">{{ t('console.developers.statPendingSub') }}</div>
             </div>
             <div class="stat-icon warn"><el-icon><Bell /></el-icon></div>
           </div>
@@ -53,9 +53,9 @@
         <el-card shadow="never" class="stat-card">
           <div class="stat-row-inner">
             <div>
-              <div class="stat-label">已认证开发者</div>
+              <div class="stat-label">{{ t('console.developers.statApproved') }}</div>
               <div class="stat-value">{{ countBy('approved') }}</div>
-              <div class="stat-sub">可创建应用</div>
+              <div class="stat-sub">{{ t('console.developers.statApprovedSub') }}</div>
             </div>
             <div class="stat-icon success"><el-icon><CircleCheck /></el-icon></div>
           </div>
@@ -65,9 +65,9 @@
         <el-card shadow="never" class="stat-card">
           <div class="stat-row-inner">
             <div>
-              <div class="stat-label">普通用户</div>
+              <div class="stat-label">{{ t('console.developers.normalUser') }}</div>
               <div class="stat-value">{{ countBy('none') }}</div>
-              <div class="stat-sub">尚未申请资格</div>
+              <div class="stat-sub">{{ t('console.developers.statNormalSub') }}</div>
             </div>
             <div class="stat-icon"><el-icon><UserFilled /></el-icon></div>
           </div>
@@ -78,17 +78,17 @@
     <el-card shadow="never" class="box-card">
       <div class="cp-toolbar">
         <el-radio-group v-model="statusFilter">
-          <el-radio-button value="">全部</el-radio-button>
-          <el-radio-button value="pending">待审核</el-radio-button>
-          <el-radio-button value="approved">已通过</el-radio-button>
-          <el-radio-button value="rejected">已驳回</el-radio-button>
-          <el-radio-button value="none">普通用户</el-radio-button>
-          <el-radio-button value="suspended">已停用</el-radio-button>
+          <el-radio-button value="">{{ t('console.common.all') }}</el-radio-button>
+          <el-radio-button value="pending">{{ t('console.common.pending') }}</el-radio-button>
+          <el-radio-button value="approved">{{ t('console.common.approved') }}</el-radio-button>
+          <el-radio-button value="rejected">{{ t('console.developers.rejected') }}</el-radio-button>
+          <el-radio-button value="none">{{ t('console.developers.normalUser') }}</el-radio-button>
+          <el-radio-button value="suspended">{{ t('console.developers.suspended') }}</el-radio-button>
         </el-radio-group>
         <div class="spacer" />
         <el-input
           v-model="keyword"
-          placeholder="搜索邮箱 / 公司 / 联系方式"
+          :placeholder="t('console.developers.searchPlaceholder')"
           clearable
           :prefix-icon="Search"
           style="width: 260px"
@@ -96,7 +96,7 @@
       </div>
 
       <el-table :data="filteredDevelopers" v-loading="loading" stripe>
-        <el-table-column label="用户" min-width="200">
+        <el-table-column :label="t('console.developers.colUser')" min-width="200">
           <template #default="{ row }">
             <div class="user-cell">
               <el-avatar :size="30" class="user-avatar">
@@ -109,13 +109,13 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="company" label="公司 / 团队" min-width="140">
+        <el-table-column prop="company" :label="t('console.developers.colCompany')" min-width="140">
           <template #default="{ row }">{{ row.company || '—' }}</template>
         </el-table-column>
-        <el-table-column prop="contact" label="联系方式" min-width="130">
+        <el-table-column prop="contact" :label="t('console.developers.colContact')" min-width="130">
           <template #default="{ row }">{{ row.contact || '—' }}</template>
         </el-table-column>
-        <el-table-column label="开发者资格" width="120">
+        <el-table-column :label="t('console.developers.colQualification')" width="120">
           <template #default="{ row }">
             <el-tooltip
               :content="row.developer_reject_reason"
@@ -128,72 +128,76 @@
             </el-tooltip>
           </template>
         </el-table-column>
-        <el-table-column label="账号" width="90">
+        <el-table-column :label="t('console.developers.colAccount')" width="90">
           <template #default="{ row }">
             <el-tag :type="row.status === 'active' ? 'success' : 'danger'" size="small" effect="plain">
-              {{ row.status === 'active' ? '正常' : '停用' }}
+              {{ row.status === 'active' ? t('console.developers.accountActive') : t('console.common.disable') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="申请时间" width="165">
+        <el-table-column :label="t('console.developers.colAppliedAt')" width="165">
           <template #default="{ row }">
             {{ row.developer_applied_at ? fmtTime(row.developer_applied_at) : '—' }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="230" fixed="right">
+        <el-table-column :label="t('console.common.actions')" width="230" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" link type="primary" @click="openDetail(row)">资料</el-button>
+            <el-button size="small" link type="primary" @click="openDetail(row)">{{ t('console.developers.btnProfile') }}</el-button>
             <template v-if="row.developer_status === 'pending'">
-              <el-button size="small" type="success" @click="approve(row)">通过</el-button>
-              <el-button size="small" type="danger" @click="openReason(row, 'reject')">驳回</el-button>
+              <el-button size="small" type="success" @click="approve(row)">{{ t('console.common.approve') }}</el-button>
+              <el-button size="small" type="danger" @click="openReason(row, 'reject')">{{ t('console.developers.btnReject') }}</el-button>
             </template>
             <template v-else-if="row.status === 'suspended'">
-              <el-button size="small" type="primary" @click="restore(row)">恢复账号</el-button>
+              <el-button size="small" type="primary" @click="restore(row)">{{ t('console.developers.btnRestore') }}</el-button>
             </template>
             <template v-else-if="row.developer_status === 'approved'">
               <el-button size="small" type="warning" plain @click="openReason(row, 'suspend')">
-                停用账号
+                {{ t('console.developers.btnSuspend') }}
               </el-button>
             </template>
           </template>
         </el-table-column>
         <template #empty>
-          <el-empty description="没有符合条件的用户" />
+          <el-empty :description="t('console.developers.emptyFiltered')" />
         </template>
       </el-table>
     </el-card>
 
     <!-- 资料详情 -->
-    <el-dialog v-model="detailVisible" title="用户资料详情" width="560px">
+    <el-dialog v-model="detailVisible" :title="t('console.developers.detailTitle')" width="560px">
       <el-descriptions v-if="detailRow" :column="1" border>
-        <el-descriptions-item label="邮箱">{{ detailRow.email }}</el-descriptions-item>
-        <el-descriptions-item label="公司 / 团队">{{ detailRow.company || '未填写' }}</el-descriptions-item>
-        <el-descriptions-item label="联系方式">{{ detailRow.contact || '未填写' }}</el-descriptions-item>
-        <el-descriptions-item label="开发者资格">
+        <el-descriptions-item :label="t('console.developers.labelEmail')">{{ detailRow.email }}</el-descriptions-item>
+        <el-descriptions-item :label="t('console.developers.colCompany')">
+          {{ detailRow.company || t('console.developers.notProvided') }}
+        </el-descriptions-item>
+        <el-descriptions-item :label="t('console.developers.colContact')">
+          {{ detailRow.contact || t('console.developers.notProvided') }}
+        </el-descriptions-item>
+        <el-descriptions-item :label="t('console.developers.colQualification')">
           {{ qualificationText(detailRow.developer_status) }}
         </el-descriptions-item>
-        <el-descriptions-item label="账号状态">
-          {{ detailRow.status === 'active' ? '正常' : '停用' }}
+        <el-descriptions-item :label="t('console.developers.labelAccountStatus')">
+          {{ detailRow.status === 'active' ? t('console.developers.accountActive') : t('console.common.disable') }}
         </el-descriptions-item>
-        <el-descriptions-item label="提交时间">
+        <el-descriptions-item :label="t('console.developers.labelSubmittedAt')">
           {{ detailRow.developer_applied_at ? fmtTime(detailRow.developer_applied_at) : '—' }}
         </el-descriptions-item>
-        <el-descriptions-item label="驳回原因">
+        <el-descriptions-item :label="t('console.developers.labelRejectReason')">
           {{ detailRow.developer_reject_reason || '—' }}
         </el-descriptions-item>
-        <el-descriptions-item label="注册时间">{{ fmtTime(detailRow.created_at) }}</el-descriptions-item>
-        <el-descriptions-item label="最近登录">
-          {{ detailRow.last_login_at ? fmtTime(detailRow.last_login_at) : '从未登录' }}
+        <el-descriptions-item :label="t('console.developers.labelCreatedAt')">{{ fmtTime(detailRow.created_at) }}</el-descriptions-item>
+        <el-descriptions-item :label="t('console.developers.labelLastLogin')">
+          {{ detailRow.last_login_at ? fmtTime(detailRow.last_login_at) : t('console.common.neverLogin') }}
         </el-descriptions-item>
       </el-descriptions>
       <template #footer>
-        <el-button @click="detailVisible = false">关闭</el-button>
+        <el-button @click="detailVisible = false">{{ t('console.common.close') }}</el-button>
         <el-button
           v-if="detailRow?.developer_status === 'pending'"
           type="primary"
           @click="approve(detailRow!)"
         >
-          通过审核
+          {{ t('console.developers.approveButton') }}
         </el-button>
       </template>
     </el-dialog>
@@ -204,11 +208,11 @@
         v-model="reason"
         type="textarea"
         :rows="3"
-        placeholder="请填写理由（用户门户可见）"
+        :placeholder="t('console.developers.reasonPlaceholder')"
       />
       <template #footer>
-        <el-button @click="reasonVisible = false">取消</el-button>
-        <el-button type="danger" :loading="submitting" @click="submitReason">确认</el-button>
+        <el-button @click="reasonVisible = false">{{ t('console.common.cancel') }}</el-button>
+        <el-button type="danger" :loading="submitting" @click="submitReason">{{ t('console.common.confirm') }}</el-button>
       </template>
     </el-dialog>
   </ConsolePage>
@@ -216,12 +220,15 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   Refresh, Search, User, UserFilled, Bell, CircleCheck,
 } from '@element-plus/icons-vue';
 import ConsolePage from '../../components/console/ConsolePage.vue';
 import api from '../../api';
+
+const { t } = useI18n();
 
 interface DeveloperRow {
   id: number;
@@ -270,7 +277,9 @@ function countBy(status: string): number {
   return allDevelopers.value.filter((d) => d.developer_status === status).length;
 }
 const reasonTitle = computed(() =>
-  reasonMode.value === 'reject' ? '驳回开发者资格申请' : '停用账号',
+  reasonMode.value === 'reject'
+    ? t('console.developers.reasonTitleReject')
+    : t('console.developers.reasonTitleSuspend'),
 );
 
 onMounted(loadDevelopers);
@@ -299,7 +308,12 @@ function qualificationTag(s: string) {
   return { approved: 'success', pending: 'warning', rejected: 'danger', none: 'info' }[s] || 'info';
 }
 function qualificationText(s: string) {
-  return { approved: '已认证', pending: '待审核', rejected: '已驳回', none: '未申请' }[s] || s;
+  return {
+    approved: t('console.developers.qualApproved'),
+    pending: t('console.common.pending'),
+    rejected: t('console.developers.rejected'),
+    none: t('console.developers.qualNone'),
+  }[s] || s;
 }
 function fmtTime(s: string): string {
   return new Date(s).toLocaleString('zh-CN', { hour12: false });
@@ -313,8 +327,8 @@ function openDetail(row: DeveloperRow) {
 async function approve(row: DeveloperRow) {
   try {
     await ElMessageBox.confirm(
-      `确认通过「${row.email}」的开发者资格申请？通过后该用户即可创建应用。`,
-      '审核确认',
+      t('console.developers.approveConfirm', { email: row.email }),
+      t('console.common.reviewConfirmTitle'),
       { type: 'success' },
     );
   } catch {
@@ -322,19 +336,19 @@ async function approve(row: DeveloperRow) {
   }
   await api.patch(`/api/admin/developers/${row.id}/review`, { action: 'approve' });
   detailVisible.value = false;
-  ElMessage.success('已通过，该用户现在可以创建应用');
+  ElMessage.success(t('console.developers.approvedMsg'));
   notifyPendingChanged();
   await loadDevelopers();
 }
 
 async function restore(row: DeveloperRow) {
   try {
-    await ElMessageBox.confirm(`确认恢复「${row.email}」的账号？`, '确认', { type: 'info' });
+    await ElMessageBox.confirm(t('console.developers.restoreConfirm', { email: row.email }), t('console.common.confirm'), { type: 'info' });
   } catch {
     return;
   }
   await api.patch(`/api/admin/developers/${row.id}/status`, { status: 'active' });
-  ElMessage.success('账号已恢复');
+  ElMessage.success(t('console.developers.restoredMsg'));
   await loadDevelopers();
 }
 
@@ -347,7 +361,7 @@ function openReason(row: DeveloperRow, mode: 'reject' | 'suspend') {
 
 async function submitReason() {
   if (!reasonTarget.value || !reason.value.trim()) {
-    ElMessage.warning('请填写理由');
+    ElMessage.warning(t('console.developers.reasonRequired'));
     return;
   }
   submitting.value = true;
@@ -364,11 +378,11 @@ async function submitReason() {
       });
     }
     reasonVisible.value = false;
-    ElMessage.success('已处理');
+    ElMessage.success(t('console.developers.processedMsg'));
     notifyPendingChanged();
     await loadDevelopers();
   } catch (e: any) {
-    ElMessage.error(e?.response?.data?.message || '操作失败');
+    ElMessage.error(e?.response?.data?.message || t('console.common.opFailed'));
   } finally {
     submitting.value = false;
   }

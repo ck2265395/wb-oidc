@@ -3,7 +3,7 @@
     <el-card class="box-card">
       <template #header>
         <div class="card-header">
-          <span class="brand">🔐 统一身份认证</span>
+          <span class="brand">🔐 {{ t('common.interaction.brand') }}</span>
         </div>
       </template>
 
@@ -12,9 +12,9 @@
       </div>
 
       <div v-else-if="error" class="center">
-        <el-result icon="error" title="出错了" :sub-title="error">
+        <el-result icon="error" :title="t('common.interaction.errorTitle')" :sub-title="error">
           <template #extra>
-            <el-button @click="reload">重试</el-button>
+            <el-button @click="reload">{{ t('common.interaction.retry') }}</el-button>
           </template>
         </el-result>
       </div>
@@ -26,30 +26,30 @@
           :closable="false"
           show-icon
           class="mb16"
-          :title="`「${details.client.client_name}」请求登录`"
-          :description="`登录后将授权该应用获取你的部分账号信息`"
+          :title="t('common.interaction.clientLoginTitle', { name: details.client.client_name })"
+          :description="t('common.interaction.clientLoginDesc')"
         />
         <el-form label-position="top" @submit.prevent>
-          <el-form-item label="用户名 / 账号">
-            <el-input v-model="loginForm.username" placeholder="请输入用户名" />
+          <el-form-item :label="t('common.interaction.username')">
+            <el-input v-model="loginForm.username" :placeholder="t('common.interaction.usernamePlaceholder')" />
           </el-form-item>
-          <el-form-item label="密码">
+          <el-form-item :label="t('common.interaction.password')">
             <el-input
               v-model="loginForm.password"
               type="password"
               show-password
-              placeholder="请输入密码"
+              :placeholder="t('common.interaction.passwordPlaceholder')"
               @keyup.enter="submitLogin"
             />
           </el-form-item>
-          <el-checkbox v-model="loginForm.remember">记住登录（14 天内免登录）</el-checkbox>
+          <el-checkbox v-model="loginForm.remember">{{ t('common.interaction.remember') }}</el-checkbox>
           <el-button
             type="primary"
             class="full-btn mt16"
             :loading="submitting"
             @click="submitLogin"
           >
-            登录并继续
+            {{ t('common.interaction.submit') }}
           </el-button>
         </el-form>
       </div>
@@ -61,7 +61,7 @@
           :closable="false"
           show-icon
           class="mb16"
-          :title="`「${details.client.client_name}」申请获取以下权限`"
+          :title="t('common.interaction.clientScopeTitle', { name: details.client.client_name })"
         />
         <div class="scope-list">
           <div v-for="s in scopes" :key="s.key" class="scope-item">
@@ -70,15 +70,19 @@
           </div>
         </div>
         <div class="mt24 actions">
-          <el-button @click="deny">拒绝</el-button>
+          <el-button @click="deny">{{ t('common.interaction.reject') }}</el-button>
           <el-button type="primary" :loading="submitting" @click="submitConsent">
-            同意授权
+            {{ t('common.interaction.approve') }}
           </el-button>
         </div>
       </div>
 
       <div v-else class="center">
-        <el-result icon="warning" title="不支持的交互类型" :sub-title="details?.prompt?.name" />
+        <el-result
+          icon="warning"
+          :title="t('common.interaction.unsupported')"
+          :sub-title="details?.prompt?.name"
+        />
       </div>
     </el-card>
   </div>
@@ -88,10 +92,12 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { useI18n } from 'vue-i18n';
 import axios, { InteractionDetails } from '../api';
 
 const route = useRoute();
 const uid = route.params.uid as string;
+const { t } = useI18n();
 
 const loading = ref(true);
 const submitting = ref(false);
@@ -100,12 +106,12 @@ const details = ref<InteractionDetails | null>(null);
 
 const loginForm = ref({ username: '', password: '', remember: false });
 
-const SCOPE_MAP: Record<string, { label: string; desc: string }> = {
-  openid: { label: '身份标识', desc: '获取你的唯一用户 ID' },
-  profile: { label: '基本资料', desc: '获取昵称、头像等基础资料' },
-  email: { label: '邮箱', desc: '获取你的邮箱地址' },
-  phone: { label: '手机号', desc: '获取你的手机号' },
-  offline_access: { label: '离线访问', desc: '在你离线时代表你刷新数据' },
+const SCOPE_KEYS: Record<string, string> = {
+  openid: 'openid',
+  profile: 'profile',
+  email: 'email',
+  phone: 'phone',
+  offline_access: 'offline_access',
 };
 
 const scopes = computed(() => {
@@ -113,7 +119,11 @@ const scopes = computed(() => {
   return scopeStr
     .split(' ')
     .filter((s) => s !== 'offline_access')
-    .map((s) => ({ key: s, ...(SCOPE_MAP[s] || { label: s, desc: '' }) }));
+    .map((s) => ({
+      key: s,
+      label: SCOPE_KEYS[s] ? t(`common.interaction.scopes.${s}`) : s,
+      desc: SCOPE_KEYS[s] ? t(`common.interaction.scopes.${s}Desc`) : '',
+    }));
 });
 
 async function loadDetails() {
@@ -123,7 +133,7 @@ async function loadDetails() {
     const { data } = await axios.get<InteractionDetails>(`/interaction/${uid}/details`);
     details.value = data;
   } catch (e: any) {
-    error.value = e?.response?.data?.message || e?.message || '无法获取交互信息';
+    error.value = e?.response?.data?.message || e?.message || t('common.interaction.loadFailed');
   } finally {
     loading.value = false;
   }
@@ -135,7 +145,7 @@ function reload() {
 
 async function submitLogin() {
   if (!loginForm.value.username || !loginForm.value.password) {
-    ElMessage.warning('请输入用户名和密码');
+    ElMessage.warning(t('common.interaction.enterBoth'));
     return;
   }
   submitting.value = true;
@@ -147,7 +157,7 @@ async function submitLogin() {
     });
     window.location.href = data.redirectTo;
   } catch (e: any) {
-    ElMessage.error(e?.response?.data?.message || '登录失败');
+    ElMessage.error(e?.response?.data?.message || t('common.interaction.loginFailed'));
     submitting.value = false;
   }
 }
@@ -158,14 +168,14 @@ async function submitConsent() {
     const { data } = await axios.post<{ redirectTo: string }>(`/interaction/${uid}/confirm`);
     window.location.href = data.redirectTo;
   } catch (e: any) {
-    ElMessage.error(e?.response?.data?.message || '授权失败');
+    ElMessage.error(e?.response?.data?.message || t('common.interaction.consentFailed'));
     submitting.value = false;
   }
 }
 
 async function deny() {
   try {
-    await ElMessageBox.confirm('拒绝后将返回第三方应用且不授予任何权限，确认拒绝？', '提示', {
+    await ElMessageBox.confirm(t('common.interaction.consentConfirm'), t('common.interaction.confirmTitle'), {
       type: 'warning',
     });
     // 拒绝授权：回到客户端，携带 access_denied
@@ -175,10 +185,10 @@ async function deny() {
       const sep = redirectUri.includes('?') ? '&' : '?';
       const statePart = state ? `&state=${encodeURIComponent(state)}` : '';
       window.location.href = `${redirectUri}${sep}error=access_denied&error_description=${encodeURIComponent(
-        '用户拒绝授权',
+        t('common.interaction.deniedDesc'),
       )}${statePart}`;
     } else {
-      ElMessage.info('已拒绝');
+      ElMessage.info(t('common.interaction.denied'));
     }
   } catch {
     /* 用户取消 */
@@ -194,7 +204,7 @@ onMounted(loadDetails);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #eaf2ff 0%, #f3f8ff 100%);
+  background: linear-gradient(135deg, var(--brand-100) 0%, var(--canvas) 100%);
   padding: 24px;
 }
 .box-card {
@@ -233,7 +243,7 @@ onMounted(loadDetails);
   gap: 10px;
 }
 .scope-desc {
-  color: #666;
+  color: var(--ink-500);
   font-size: 13px;
 }
 .actions {
