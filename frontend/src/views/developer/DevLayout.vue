@@ -24,6 +24,35 @@
         </nav>
 
         <div class="nav-right">
+          <!-- 语言切换 -->
+          <el-dropdown trigger="click" @command="onLocaleCommand">
+            <button class="nav-icon-btn" :title="t('common.settings.language')">
+              <el-icon :size="17"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><path d="M2 12h20" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg></el-icon>
+              <span class="nav-icon-text">{{ locale === 'zh-CN' ? 'EN' : '中' }}</span>
+            </button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item
+                  v-for="l in LOCALES"
+                  :key="l.value"
+                  :command="l.value"
+                  :class="{ 'locale-active': locale === l.value }"
+                >
+                  {{ l.label }}
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+
+          <!-- 明暗切换 -->
+          <el-tooltip :content="darkToggleTip" placement="bottom">
+            <button class="nav-icon-btn" @click="toggleDark">
+              <el-icon :size="17"><Moon v-if="!isDark" /><Sunny v-else /></el-icon>
+            </button>
+          </el-tooltip>
+
+          <span class="nav-divider" />
+
           <template v-if="!developer">
             <el-button text @click="$router.push('/developer/login?tab=login')">{{ t('developer.nav.signIn') }}</el-button>
             <el-button type="primary" round @click="$router.push('/developer/login?tab=register')">
@@ -76,7 +105,9 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
-import { ArrowDown } from '@element-plus/icons-vue';
+import { ArrowDown, Sunny, Moon } from '@element-plus/icons-vue';
+import { LOCALES, switchLocale } from '../../i18n';
+import { useTheme } from '../../composables/useTheme';
 import {
   devLogout,
   getDevAccessToken,
@@ -87,8 +118,24 @@ import {
 
 const route = useRoute();
 const router = useRouter();
-const { t } = useI18n();
+const { t, locale } = useI18n();
+const { darkMode, isDark, setDarkMode } = useTheme();
 const developer = ref<DeveloperInfo | null>(getCurrentDeveloper());
+
+/** 明暗按钮 tooltip：显示点击后将切换到的模式 */
+const darkToggleTip = computed(() =>
+  isDark.value ? t('developer.nav.lightMode') : t('developer.nav.darkMode'),
+);
+
+/** 明暗三档循环切换：亮 → 暗 → 跟随系统 → 亮 */
+function toggleDark() {
+  const next = darkMode.value === 'light' ? 'dark' : darkMode.value === 'dark' ? 'auto' : 'light';
+  setDarkMode(next);
+}
+
+function onLocaleCommand(lang: 'zh-CN' | 'en-US') {
+  switchLocale(lang);
+}
 
 onMounted(refreshUser);
 watch(() => route.path, refreshUser);
@@ -122,15 +169,15 @@ async function onCommand(cmd: string) {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #f6f9fd;
+  background: var(--canvas);
 }
 .nav {
   position: sticky;
   top: 0;
   z-index: 100;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--nav-bg);
   backdrop-filter: blur(12px);
-  border-bottom: 1px solid #e3eaf3;
+  border-bottom: 1px solid var(--line);
 }
 .nav-inner {
   max-width: 1120px;
@@ -152,8 +199,8 @@ async function onCommand(cmd: string) {
   width: 34px;
   height: 34px;
   border-radius: 8px;
-  background: #fff;
-  border: 1px solid #e3eaf3;
+  background: var(--paper);
+  border: 1px solid var(--line);
   object-fit: contain;
   padding: 2px;
   box-sizing: border-box;
@@ -166,12 +213,12 @@ async function onCommand(cmd: string) {
 .brand-name {
   font-size: 15px;
   font-weight: 700;
-  color: #0b1220;
+  color: var(--ink-900);
   white-space: nowrap;
 }
 .brand-sub {
   font-size: 11px;
-  color: #8a97a8;
+  color: var(--ink-300);
 }
 .menu {
   display: flex;
@@ -182,24 +229,56 @@ async function onCommand(cmd: string) {
   padding: 8px 16px;
   border-radius: 6px;
   font-size: 14px;
-  color: #4b5563;
+  color: var(--ink-700);
   text-decoration: none;
   transition: all 0.2s;
 }
 .menu-item:hover {
-  color: #0b57d0;
-  background: #ecf3fd;
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
 }
 .menu-item.active {
-  color: #0b57d0;
+  color: var(--el-color-primary);
   font-weight: 600;
-  background: #ecf3fd;
+  background: var(--el-color-primary-light-9);
 }
 .nav-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-shrink: 0;
+}
+.nav-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 34px;
+  padding: 0 9px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink-700);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.nav-icon-btn:hover {
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+}
+.nav-icon-text {
+  letter-spacing: 0.5px;
+}
+.nav-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--line);
+  margin: 0 8px;
+}
+.locale-active {
+  color: var(--el-color-primary);
+  font-weight: 600;
 }
 .user-chip {
   display: flex;
@@ -211,16 +290,16 @@ async function onCommand(cmd: string) {
   transition: background 0.2s;
 }
 .user-chip:hover {
-  background: #f1f5f9;
+  background: var(--canvas);
 }
 .user-avatar {
-  background: #0a3d91;
+  background: var(--brand-700);
   color: #fff;
   font-weight: 600;
 }
 .user-email {
   font-size: 13px;
-  color: #374151;
+  color: var(--ink-700);
   max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;

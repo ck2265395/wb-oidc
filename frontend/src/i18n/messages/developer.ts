@@ -20,6 +20,8 @@ export default {
       accountProfile: '账号资料',
       copyright: '© 2026 Moondrop 开放平台 · 基于 OIDC 标准协议',
       logoutSuccess: '已退出登录',
+      lightMode: '切换为亮色模式',
+      darkMode: '切换为暗色模式',
     },
     common: {
       saveChanges: '保存修改',
@@ -331,6 +333,8 @@ export default {
       accountProfile: 'Account Profile',
       copyright: '© 2026 Moondrop Open Platform · Built on the OIDC standard',
       logoutSuccess: 'Signed out',
+      lightMode: 'Switch to light mode',
+      darkMode: 'Switch to dark mode',
     },
     common: {
       saveChanges: 'Save Changes',

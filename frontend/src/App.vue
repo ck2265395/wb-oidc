@@ -3,8 +3,14 @@
     <router-view />
   </el-config-provider>
 
-  <!-- 全局界面设置：语言 / 主色 / 暗色 -->
-  <el-popover placement="left-end" :width="264" trigger="click" popper-class="theme-popper">
+  <!-- 全局界面设置：语言 / 主色 / 暗色（门户页不用，门户在 Header 右侧提供语言+明暗切换） -->
+  <el-popover
+    v-if="!isPortal"
+    placement="left-end"
+    :width="264"
+    trigger="click"
+    popper-class="theme-popper"
+  >
     <template #reference>
       <el-button class="settings-fab" circle size="large" :title="t('common.settings.title')">
         <el-icon :size="18"><Setting /></el-icon>
@@ -67,6 +73,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { Setting, Sunny, Moon } from '@element-plus/icons-vue';
 import { LOCALES, switchLocale } from './i18n';
@@ -75,6 +82,10 @@ import { EP_LOCALES } from './i18n';
 
 const { t, locale } = useI18n();
 const { darkMode, primaryColor, setDarkMode, setPrimaryColor } = useTheme();
+const route = useRoute();
+
+// 门户页（开发者门户）不提供换肤，仅 Header 右侧语言+明暗切换
+const isPortal = computed(() => !route.path.startsWith('/console') && !route.path.startsWith('/interaction') && !route.path.startsWith('/callback'));
 
 // element-plus 组件库语言跟随当前 locale
 const epLocale = computed(() => EP_LOCALES[locale.value as 'zh-CN' | 'en-US'] ?? EP_LOCALES['zh-CN']);
